@@ -12,9 +12,9 @@ st.set_page_config(layout="wide")
 # ----------------------------
 # Layout in due colonne: titolo a sinistra, logo a destra
 # ----------------------------
-col1, col2 = st.columns([3, 1])
+col1, col2 = st.columns([3, 2])
 with col1:
-    st.title("Servizio Urbano Jesi – Conerobus")
+    st.title("Servizio Urbano Jesi")
     st.markdown("""
         Questa applicazione consente di esplorare le linee del trasporto pubblico urbano di Jesi fornite da **Conerobus**.
 
@@ -22,7 +22,7 @@ with col1:
         - Le fermate evidenziate in **arancione** rappresentano punti di interscambio tra diverse linee.
     """)
 with col2:
-    st.image("Logo_Conerobus.png", width=500)
+    st.image("Logo_Conerobus.png", width=400)
 
 
 def time_to_seconds(t):
