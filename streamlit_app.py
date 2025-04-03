@@ -126,17 +126,65 @@ for sid, info in stop_info.items():
         popup_lines.insert(1, "<i style='color:grey;'>Fermata di interscambio</i><br><br>")
 
     popup_text = "".join(popup_lines)
+from folium.features import CustomIcon
 
-    icon = folium.Icon(color="orange" if is_interchange else "blue", icon="bus", prefix="fa")
+# Path all'immagine del logo personalizzato
+logo_path = "01-CONEROBUS1-removebg-preview.png"
+
+# Inserimento fermate sulla mappa
+plotted_stops = set()
+
+for sid, info in stop_info.items():
+    if sid in plotted_stops:
+        continue
+
+    active_routes = [r for r in info["routes"] if r in selected_routes]
+    if not active_routes:
+        continue
+
+    times_by_route = {r: [time_to_seconds(t) for t in info["routes"][r]] for r in active_routes}
+    popup_lines = [f"<b>{info['stop_name']}</b><br><br>"]
+    is_interchange = False
+
+    for r in active_routes:
+        display_times = []
+        for t in sorted(info["routes"][r]):
+            sec = time_to_seconds(t)
+            has_match = any(
+                abs(sec - sec2) <= 300
+                for r2 in active_routes if r2 != r
+                for sec2 in times_by_route[r2]
+            )
+            ft = format_time_str(t)
+            if has_match:
+                display_times.append(f"<u>{ft}</u>")
+                is_interchange = True
+            else:
+                display_times.append(ft)
+        color = route_colors.get(r, "black")
+        popup_lines.append(f"<b style='color:{color};'>{r}</b>: {' '.join(display_times)}<br><br>")
+
+    if is_interchange:
+        popup_lines.insert(1, "<i style='color:grey;'>Fermata di interscambio</i><br><br>")
+
+    popup_text = "".join(popup_lines)
+
+    if is_interchange:
+        marker_icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa")
+    else:
+        marker_icon = CustomIcon(logo_path, icon_size=(30, 30))
+
     folium.Marker(
         location=[info["lat"], info["lon"]],
         popup=folium.Popup(popup_text, max_width=300),
-        icon=icon
+        icon=marker_icon
     ).add_to(m)
+
     plotted_stops.add(sid)
+
 
 # ----------------------------
 # Visualizzazione mappa
 # ----------------------------
 st.markdown("### Mappa del servizio")
-st_data = st_folium(m, width=1000, height=700)
+st_folium(m, use_container_width=True, height=1000)
