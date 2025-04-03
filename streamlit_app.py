@@ -54,10 +54,22 @@ stops, trips, stop_times, shapes, routes = load_data()
 
 route_ids = sorted(trips["route_id"].unique())
 selected_routes = st.multiselect("Seleziona le linee da visualizzare", route_ids, placeholder="Scegli le linee")
+# centramento mappa
+if selected_routes:
+    selected_shape_ids = trips[trips["route_id"].isin(selected_routes)]["shape_id"].unique()
+    selected_coords = shapes[shapes["shape_id"].isin(selected_shape_ids)]
+    if not selected_coords.empty:
+        center_lat = selected_coords["lat"].mean()
+        center_lon = selected_coords["lon"].mean()
+    else:
+        center_lat = stops["stop_lat"].mean()
+        center_lon = stops["stop_lon"].mean()
+else:
+    center_lat = stops["stop_lat"].mean()
+    center_lon = stops["stop_lon"].mean()
 
-center_lat = stops["stop_lat"].mean()
-center_lon = stops["stop_lon"].mean()
 m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
+
 
 stop_info = {}
 route_colors = {}
