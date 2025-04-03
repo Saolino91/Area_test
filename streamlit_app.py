@@ -35,6 +35,9 @@ def format_time_str(time_str):
     except:
         return time_str
 
+# ----------------------------
+# Caricamento dati
+# ----------------------------
 @st.cache_data
 def load_data():
     stops = pd.read_csv("stops.txt")
@@ -49,72 +52,53 @@ def load_data():
 stops, trips, stop_times, shapes, routes = load_data()
 
 # ----------------------------
-# Gestione colori linee
+# Colori assegnati
 # ----------------------------
+route_ids = sorted(trips["route_id"].unique())
 color_list = ["red", "blue", "green", "orange", "purple", "pink", "cadetblue", "darkred", "gray", "beige"]
-route_colors = {route_id: color_list[i % len(color_list)]
-                for i, route_id in enumerate(routes["route_id"].unique())}
+route_colors = {rid: color_list[i % len(color_list)] for i, rid in enumerate(route_ids)}
 
 # ----------------------------
-# Legenda interattiva
+# UI Legenda interattiva
 # ----------------------------
 st.markdown("### Legenda linee")
 
-if "selected_routes" not in st.session_state:
-    st.session_state.selected_routes = []
+selected_routes = st.session_state.get("selected_routes", set())
 
-for route_id in routes["route_id"]:
-    if f"toggle_{route_id}" in st.session_state:
-        if route_id in st.session_state.selected_routes:
-            st.session_state.selected_routes.remove(route_id)
+for rid in route_ids:
+    color = route_colors[rid]
+    name_row = routes[routes["route_id"] == rid]
+    long_name = name_row["route_long_name"].values[0] if not name_row.empty else ""
+
+    clicked = st.button(
+        rid,
+        key=f"btn_{rid}",
+        help=long_name,
+        use_container_width=False
+    )
+    if clicked:
+        if rid in selected_routes:
+            selected_routes.remove(rid)
         else:
-            st.session_state.selected_routes.append(route_id)
-
-legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 1rem;'>"
-
-for _, row in routes.iterrows():
-    route_id = row["route_id"]
-    route_name = row["route_long_name"]
-    is_active = route_id in st.session_state.selected_routes
-    color = route_colors.get(route_id, "#000000")
-    display_color = color if is_active else "#ccc"
-
-    legend_html += f'''
-    <form action="" method="post">
-        <button name="toggle_{route_id}" type="submit" style="
-            background-color:{display_color};
-            border:none;
-            padding:0.4rem 0.7rem;
-            color:white;
-            border-radius:5px;
-            font-weight:bold;
-            cursor:pointer;">
-            {route_id}
-        </button>
-        <span style="font-size: 0.9rem; margin-left: 0.5rem;">{route_name}</span>
-    </form>
-    '''
-
-legend_html += "</div>"
-st.markdown(legend_html, unsafe_allow_html=True)
+            selected_routes.add(rid)
 
 # ----------------------------
-# Mappa e logica
+# Costruzione mappa
 # ----------------------------
-selected_routes = st.session_state.selected_routes
 center_lat = stops["stop_lat"].mean()
 center_lon = stops["stop_lon"].mean()
 m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
 
 stop_info = {}
 for route_id in selected_routes:
+    color = route_colors.get(route_id, "#000000")
     trips_of_route = trips[trips["route_id"] == route_id]
     shape_ids = trips_of_route["shape_id"].unique()
 
     for shape_id in shape_ids:
         shape_pts = shapes[shapes["shape_id"] == shape_id].sort_values("sequence")
         coords = list(zip(shape_pts["lat"], shape_pts["lon"]))
-        folium.PolyLine(coords, color=route_colors[route_id], weight=5, opacity=0.7).add_to(m)
+        folium.PolyLine(coords, color=color, weight=5, opacity=0.7).add_to(m)
 
     trip_ids = trips_of_route["trip_id"].unique()
     stops_line = stop_times[stop_times["trip_id"].isin(trip_ids)].merge(stops, on="stop_id", how="left")
@@ -128,17 +112,17 @@ for route_id in selected_routes:
                 "lon": row["stop_lon"],
                 "routes": {}
             }
-        if route_id not in stop_info[sid]["routes"]:
-            stop_info[sid]["routes"][route_id] = []
-        stop_info[sid]["routes"][route_id].append(row["arrival_time"])
+        stop_info[sid]["routes"].setdefault(route_id, []).append(row["arrival_time"])
 
-logo_path = "01-CONEROBUS1-removebg-preview.png"
+# ----------------------------
+# Marker delle fermate
+# ----------------------------
 plotted_stops = set()
+logo_path = "01-CONEROBUS1-removebg-preview.png"
 
 for sid, info in stop_info.items():
     if sid in plotted_stops:
         continue
-
     active_routes = [r for r in info["routes"] if r in selected_routes]
     if not active_routes:
         continue
@@ -169,22 +153,18 @@ for sid, info in stop_info.items():
         popup_lines.insert(1, "<i style='color:grey;'>Fermata di interscambio</i><br><br>")
 
     popup_text = "".join(popup_lines)
-
-    if is_interchange:
-        marker_icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa")
-    else:
-        marker_icon = CustomIcon(logo_path, icon_size=(30, 30))
+    icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa") if is_interchange else CustomIcon(logo_path, icon_size=(30, 30))
 
     folium.Marker(
         location=[info["lat"], info["lon"]],
         popup=folium.Popup(popup_text, max_width=300),
-        icon=marker_icon
+        icon=icon
     ).add_to(m)
 
     plotted_stops.add(sid)
 
 # ----------------------------
-# Visualizzazione mappa
+# Visualizzazione
 # ----------------------------
 st.markdown("### Mappa del servizio")
 st_folium(m, use_container_width=True, height=1000)
