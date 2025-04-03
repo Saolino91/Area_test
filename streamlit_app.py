@@ -55,6 +55,28 @@ stops, trips, stop_times, shapes = load_data()
 route_ids = sorted(trips["route_id"].unique())
 selected_routes = st.multiselect("Seleziona le linee da visualizzare", route_ids, placeholder="Scegli le linee")
 
+# Carica anche il file routes.txt
+routes = pd.read_csv("routes.txt")
+
+# Costruzione legenda dinamica
+if selected_routes:
+    st.markdown("### Legenda linee")
+    legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 1rem;'>"
+    for route_id in selected_routes:
+        color = route_colors.get(route_id, "#000000")
+        route_info = routes[routes["route_id"] == route_id]
+        route_name = route_info["route_long_name"].values[0] if not route_info.empty else ""
+        legend_html += f"""
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div style="background-color:{color}; padding: 0.4rem 0.7rem; color: white; border-radius: 5px; font-weight: bold;">
+                {route_id}
+            </div>
+            <span style="font-size: 0.9rem;">{route_name}</span>
+        </div>
+        """
+    legend_html += "</div>"
+    st.markdown(legend_html, unsafe_allow_html=True)
+
 
 # ----------------------------
 # Inizializza mappa
