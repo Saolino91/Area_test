@@ -2,23 +2,21 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
-from datetime import datetime
 from folium.features import CustomIcon
+from datetime import datetime
 
-# Configura la pagina
 st.set_page_config(layout="wide")
 
-# Logo e intestazione
-col1, col2 = st.columns([1, 5])
-with col1:
-    st.image("Logo_Conerobus.png", width=100)
-with col2:
-    st.title("Servizio Urbano Jesi – Conerobus")
-    st.markdown("""
-    Questa applicazione consente di esplorare le linee del trasporto pubblico urbano di Jesi fornite da **Conerobus**.
-    - Seleziona una o più linee cliccando sui riquadri colorati.
-    - Le fermate evidenziate in **arancione** rappresentano punti di interscambio tra diverse linee.
-    """)
+st.image("Logo_Conerobus.png", width=250)
+st.title("Servizio Urbano Jesi – Conerobus")
+
+st.markdown("""
+Questa applicazione consente di esplorare le linee del trasporto pubblico urbano di Jesi fornite da **Conerobus**.
+
+- Clicca sulle caselle colorate per attivare/disattivare una linea.
+- Le fermate evidenziate in **arancione** rappresentano punti di interscambio tra diverse linee.
+- Passa il cursore sopra un pulsante per vedere la descrizione della linea.
+""")
 
 # ----------------------------
 # Funzioni di utilità
@@ -51,39 +49,54 @@ def load_data():
 stops, trips, stop_times, shapes, routes = load_data()
 
 # ----------------------------
-# Costruzione dei colori
+# UI - Selezione linee via HTML+CSS
 # ----------------------------
-color_list = ["red", "blue", "green", "orange", "purple", "pink", "cadetblue", "darkred", "gray", "beige"]
-color_cycle = iter(color_list)
-route_colors = {}
-
-# UI: selezione da legenda
 st.markdown("### Legenda linee")
+all_route_ids = sorted(trips["route_id"].unique())
+route_colors_raw = routes.set_index("route_id")["route_color"].to_dict()
+route_names = routes.set_index("route_id")["route_long_name"].to_dict()
+
 if "active_routes" not in st.session_state:
-    st.session_state.active_routes = []
+    st.session_state.active_routes = set()
 
-legend_cols = st.columns(6)
-unique_route_ids = trips["route_id"].unique()
+def toggle_route(route_id):
+    if route_id in st.session_state.active_routes:
+        st.session_state.active_routes.remove(route_id)
+    else:
+        st.session_state.active_routes.add(route_id)
 
-for idx, route_id in enumerate(unique_route_ids):
-    route_info = routes[routes["route_id"] == route_id]
-    long_name = route_info["route_long_name"].values[0] if not route_info.empty else ""
+col_count = 5
+cols = st.columns(col_count)
 
-    if route_id not in route_colors:
-        route_colors[route_id] = next(color_cycle, "black")
-    color = route_colors[route_id]
+for idx, route_id in enumerate(all_route_ids):
+    col = cols[idx % col_count]
+    color = "#" + route_colors_raw.get(route_id, "777777")
+    active = route_id in st.session_state.active_routes
+    bg_color = color if active else "#e0e0e0"
+    text_color = "white" if active else "black"
+    tooltip = route_names.get(route_id, "")
 
-    is_active = route_id in st.session_state.active_routes
-    btn_color = color if is_active else "#ccc"
-    text_color = "white" if is_active else "black"
+    button_html = f"""
+    <div title='{tooltip}'>
+        <form action='' method='post'>
+            <button name='route' value='{route_id}' style='
+                background-color: {bg_color};
+                color: {text_color};
+                border: none;
+                border-radius: 5px;
+                padding: 8px 16px;
+                margin: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                width: 100%;
+            '>{route_id}</button>
+        </form>
+    </div>
+    """
+    col.markdown(button_html, unsafe_allow_html=True)
 
-    if legend_cols[idx % 6].button(route_id, key=route_id,
-                                   help=long_name,
-                                   use_container_width=True):
-        if route_id in st.session_state.active_routes:
-            st.session_state.active_routes.remove(route_id)
-        else:
-            st.session_state.active_routes.append(route_id)
+if "route" in st.query_params:
+    toggle_route(st.query_params["route"])
 
 # ----------------------------
 # Inizializza mappa
@@ -93,13 +106,14 @@ center_lon = stops["stop_lon"].mean()
 m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
 
 # ----------------------------
-# Percorsi e fermate
+# Colori & fermate
 # ----------------------------
+route_colors = {r: "#" + route_colors_raw.get(r, "000000") for r in all_route_ids}
 stop_info = {}
 logo_path = "01-CONEROBUS1-removebg-preview.png"
 
 for route_id in st.session_state.active_routes:
-    color = route_colors.get(route_id, "black")
+    color = route_colors.get(route_id, "#000000")
     trips_of_route = trips[trips["route_id"] == route_id]
     shape_ids = trips_of_route["shape_id"].unique()
 
@@ -120,7 +134,9 @@ for route_id in st.session_state.active_routes:
                 "lon": row["stop_lon"],
                 "routes": {}
             }
-        stop_info[sid]["routes"].setdefault(route_id, []).append(row["arrival_time"])
+        if route_id not in stop_info[sid]["routes"]:
+            stop_info[sid]["routes"][route_id] = []
+        stop_info[sid]["routes"][route_id].append(row["arrival_time"])
 
 # ----------------------------
 # Marker fermate
@@ -161,18 +177,18 @@ for sid, info in stop_info.items():
         popup_lines.insert(1, "<i style='color:grey;'>Fermata di interscambio</i><br><br>")
 
     popup_text = "".join(popup_lines)
-    icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa") if is_interchange else CustomIcon(logo_path, icon_size=(30, 30))
+    marker_icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa") if is_interchange else CustomIcon(logo_path, icon_size=(30, 30))
 
     folium.Marker(
         location=[info["lat"], info["lon"]],
         popup=folium.Popup(popup_text, max_width=300),
-        icon=icon
+        icon=marker_icon
     ).add_to(m)
 
     plotted_stops.add(sid)
 
 # ----------------------------
-# Mostra la mappa
+# Visualizzazione mappa
 # ----------------------------
 st.markdown("### Mappa del servizio")
 st_folium(m, use_container_width=True, height=1000)
