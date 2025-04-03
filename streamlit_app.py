@@ -5,6 +5,8 @@ import folium
 from streamlit_folium import st_folium
 from datetime import datetime
 
+st.set_page_config(layout="wide")
+
 st.image("Logo_Conerobus.png", width=250)
 st.title("Servizio Urbano Jesi – Conerobus")
 
@@ -51,7 +53,8 @@ stops, trips, stop_times, shapes = load_data()
 # UI - Selezione linee
 # ----------------------------
 route_ids = sorted(trips["route_id"].unique())
-selected_routes = st.multiselect("Seleziona le linee da visualizzare", route_ids)
+selected_routes = st.multiselect("Seleziona le linee da visualizzare", route_ids, placeholder="Scegli le linee")
+
 
 # ----------------------------
 # Inizializza mappa
