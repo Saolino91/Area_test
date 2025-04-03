@@ -142,7 +142,7 @@ for sid, info in stop_info.items():
     if is_interchange:
         marker_icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa")
     else:
-        marker_icon = CustomIcon(logo_path, icon_size=(30, 30))
+        marker_icon = CustomIcon(logo_path, icon_size=(20, 20))
 
     folium.Marker(
         location=[info["lat"], info["lon"]],
