@@ -1,6 +1,17 @@
 [theme]
-primaryColor="#0099ff"
-backgroundColor="#ffffff"
-secondaryBackgroundColor="#f0f2f6"
+primaryColor="#007ACC"
+backgroundColor="#F0F2F6"
+secondaryBackgroundColor="#FFFFFF"
 textColor="#262730"
 font="sans serif"
+
+[server]
+headless = true
+enableCORS = false
+
+[client]
+showSidebarNavigation = false
+
+[general]
+pageTitle = "Mappa Servizio urbano di Jesi"
+favicon = "https://raw.githubusercontent.com/Saolino91/Area_test/main/Logo_Conerobus.png"
