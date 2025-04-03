@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import folium
@@ -5,17 +6,17 @@ from streamlit_folium import st_folium
 from datetime import datetime
 from folium.features import CustomIcon
 
-# Configura la pagina
 st.set_page_config(layout="wide")
 
-# Logo e intestazione
-col1, col2 = st.columns([1, 5])
-with col1:
-    st.image("Logo_Conerobus.png", width=100)
-with col2:
+# Logo e titolo
+cols = st.columns([1, 6])
+with cols[0]:
+    st.image("Logo_Conerobus.png", width=150)
+with cols[1]:
     st.title("Servizio Urbano Jesi – Conerobus")
     st.markdown("""
     Questa applicazione consente di esplorare le linee del trasporto pubblico urbano di Jesi fornite da **Conerobus**.
+
     - Seleziona una o più linee cliccando sui riquadri colorati.
     - Le fermate evidenziate in **arancione** rappresentano punti di interscambio tra diverse linee.
     """)
@@ -44,62 +45,56 @@ def load_data():
     stop_times = pd.read_csv("stop_times.txt")
     shapes = pd.read_csv("shapes.txt", header=None, skiprows=1,
                          names=["shape_id", "lat", "lon", "sequence", "shape_dist_traveled"])
-    routes = pd.read_csv("routes.txt")
     shapes["sequence"] = shapes["sequence"].astype(int)
+    routes = pd.read_csv("routes.txt")
     return stops, trips, stop_times, shapes, routes
 
 stops, trips, stop_times, shapes, routes = load_data()
 
-# ----------------------------
-# Costruzione dei colori
-# ----------------------------
+# Colori per route_id
 color_list = ["red", "blue", "green", "orange", "purple", "pink", "cadetblue", "darkred", "gray", "beige"]
-color_cycle = iter(color_list)
-route_colors = {}
+route_ids = sorted(trips["route_id"].unique())
+route_colors = {rid: color_list[i % len(color_list)] for i, rid in enumerate(route_ids)}
 
-# UI: selezione da legenda
+# ----------------------------
+# UI: Legenda interattiva
+# ----------------------------
 st.markdown("### Legenda linee")
+
 if "active_routes" not in st.session_state:
     st.session_state.active_routes = []
 
-legend_cols = st.columns(6)
-unique_route_ids = trips["route_id"].unique()
+legend_cols = st.columns(len(route_ids))
 
-for idx, route_id in enumerate(unique_route_ids):
-    route_info = routes[routes["route_id"] == route_id]
-    long_name = route_info["route_long_name"].values[0] if not route_info.empty else ""
-
-    if route_id not in route_colors:
-        route_colors[route_id] = next(color_cycle, "black")
+for i, route_id in enumerate(route_ids):
     color = route_colors[route_id]
+    route_info = routes[routes["route_id"] == route_id]
+    route_name = route_info["route_long_name"].values[0] if not route_info.empty else ""
 
     is_active = route_id in st.session_state.active_routes
-    btn_color = color if is_active else "#ccc"
+    button_color = color if is_active else "#ccc"
     text_color = "white" if is_active else "black"
 
-    if legend_cols[idx % 6].button(route_id, key=route_id,
-                                   help=long_name,
-                                   use_container_width=True):
-        if route_id in st.session_state.active_routes:
-            st.session_state.active_routes.remove(route_id)
-        else:
-            st.session_state.active_routes.append(route_id)
+    with legend_cols[i]:
+        if st.button(route_id, key=route_id, help=route_name):
+            if is_active:
+                st.session_state.active_routes.remove(route_id)
+            else:
+                st.session_state.active_routes.append(route_id)
+        st.markdown(f"<div style='font-size:0.8rem; text-align:center; color:{text_color}; background-color:{button_color}; padding:5px; border-radius:5px; margin-top:4px'>{route_name}</div>", unsafe_allow_html=True)
+
+selected_routes = st.session_state.active_routes
 
 # ----------------------------
-# Inizializza mappa
+# Mappa
 # ----------------------------
 center_lat = stops["stop_lat"].mean()
 center_lon = stops["stop_lon"].mean()
 m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
 
-# ----------------------------
-# Percorsi e fermate
-# ----------------------------
 stop_info = {}
-logo_path = "01-CONEROBUS1-removebg-preview.png"
-
-for route_id in st.session_state.active_routes:
-    color = route_colors.get(route_id, "black")
+for route_id in selected_routes:
+    color = route_colors[route_id]
     trips_of_route = trips[trips["route_id"] == route_id]
     shape_ids = trips_of_route["shape_id"].unique()
 
@@ -125,13 +120,14 @@ for route_id in st.session_state.active_routes:
 # ----------------------------
 # Marker fermate
 # ----------------------------
+logo_path = "01-CONEROBUS1-removebg-preview.png"
 plotted_stops = set()
 
 for sid, info in stop_info.items():
     if sid in plotted_stops:
         continue
 
-    active_routes = [r for r in info["routes"] if r in st.session_state.active_routes]
+    active_routes = [r for r in info["routes"] if r in selected_routes]
     if not active_routes:
         continue
 
@@ -143,11 +139,7 @@ for sid, info in stop_info.items():
         display_times = []
         for t in sorted(info["routes"][r]):
             sec = time_to_seconds(t)
-            has_match = any(
-                abs(sec - sec2) <= 300
-                for r2 in active_routes if r2 != r
-                for sec2 in times_by_route[r2]
-            )
+            has_match = any(abs(sec - sec2) <= 300 for r2 in active_routes if r2 != r for sec2 in times_by_route[r2])
             ft = format_time_str(t)
             if has_match:
                 display_times.append(f"<u>{ft}</u>")
@@ -161,18 +153,14 @@ for sid, info in stop_info.items():
         popup_lines.insert(1, "<i style='color:grey;'>Fermata di interscambio</i><br><br>")
 
     popup_text = "".join(popup_lines)
-    icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa") if is_interchange else CustomIcon(logo_path, icon_size=(30, 30))
 
-    folium.Marker(
-        location=[info["lat"], info["lon"]],
-        popup=folium.Popup(popup_text, max_width=300),
-        icon=icon
-    ).add_to(m)
+    icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa") if is_interchange else CustomIcon(logo_path, icon_size=(30, 30))
+    folium.Marker(location=[info["lat"], info["lon"]], popup=folium.Popup(popup_text, max_width=300), icon=icon).add_to(m)
 
     plotted_stops.add(sid)
 
 # ----------------------------
-# Mostra la mappa
+# Visualizzazione
 # ----------------------------
 st.markdown("### Mappa del servizio")
 st_folium(m, use_container_width=True, height=1000)
