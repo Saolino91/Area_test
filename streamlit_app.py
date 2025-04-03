@@ -5,6 +5,16 @@ import folium
 from streamlit_folium import st_folium
 from datetime import datetime
 
+st.image("Logo_Conerobus.png", width=250)
+st.title("Servizio Urbano Jesi – Conerobus")
+
+st.markdown("""
+Questa applicazione consente di esplorare le linee del trasporto pubblico urbano di Jesi fornite da **Conerobus**.
+
+- Seleziona una o più linee dal menu a sinistra.
+- Le fermate evidenziate in **arancione** rappresentano punti di interscambio tra diverse linee.
+""")
+
 # ----------------------------
 # Funzioni di utilità
 # ----------------------------
