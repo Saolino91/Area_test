@@ -1,10 +1,12 @@
-
 import streamlit as st
 import pandas as pd
 import folium
+import json
 from streamlit_folium import st_folium
 from datetime import datetime
+from folium.features import CustomIcon
 
+# ----------------- CONFIGURAZIONE PAGINA -----------------
 st.set_page_config(layout="wide")
 
 col1, col2 = st.columns([3, 2])
@@ -15,11 +17,12 @@ with col1:
 
         - Seleziona una o più linee cliccando sui rettangoli colorati.
         - Le fermate evidenziate in **arancione** rappresentano punti di interscambio tra diverse linee.
+        - Puoi anche visualizzare i **quartieri della città** sulla mappa.
     """)
 with col2:
     st.image("Logo_Conerobus.png", width=400)
 
-
+# ----------------- FUNZIONI UTILI -----------------
 def time_to_seconds(t):
     try:
         h, m, s = map(int, t.split(":"))
@@ -47,9 +50,37 @@ def load_data():
 
 stops, trips, stop_times, shapes, routes = load_data()
 
+# ----------------- QUARTIERI -----------------
+with open("data/quartieri_jesi.geojson", "r", encoding="utf-8") as f:
+    quartieri_geojson = json.load(f)
+
+quartieri_nomi = sorted(set(
+    feature["properties"].get("layer", "Sconosciuto")
+    for feature in quartieri_geojson["features"]
+))
+
+quartieri_selezionati = st.multiselect(
+    "Seleziona i quartieri da visualizzare sulla mappa:",
+    options=quartieri_nomi,
+    default=quartieri_nomi
+)
+
+colori_quartieri = {
+    "Smia - Zona Industriale": "orange",
+    "Coppi - Giardini": "lightgreen",
+    "Prato": "red",
+    "Minonna": "blue",
+    "Paradiso": "yellow",
+    "San Francesco": "pink",
+    "Erbarella - San Pietro Martire": "violet",
+    "San Giuseppe": "brown",
+    "Centro Storico": "gray",
+    "Via Roma": "lightgray"
+}
+
+# ----------------- GESTIONE LINEE -----------------
 route_ids = sorted(trips["route_id"].unique())
 
-# Assegna i colori una volta per tutte le route_id
 if "route_colors" not in st.session_state:
     st.session_state.route_colors = {}
     color_list = ["red", "blue", "green", "orange", "purple", "pink", "cadetblue", "darkred", "gray", "beige"]
@@ -58,7 +89,6 @@ if "route_colors" not in st.session_state:
         st.session_state.route_colors[rid] = next(color_cycle, "black")
 route_colors = st.session_state.route_colors
 
-# Stato selezionato con pulsanti
 if "selected_routes" not in st.session_state:
     st.session_state["selected_routes"] = []
 
@@ -67,8 +97,6 @@ cols = st.columns(6)
 for idx, route_id in enumerate(route_ids):
     color = route_colors.get(route_id, "#888888")
     is_selected = route_id in st.session_state["selected_routes"]
-    button_label = f"**{route_id}**"
-    style = f"background-color:{color};color:white;border-radius:8px;" if is_selected else "border-radius:8px;"
     if cols[idx % 6].button(route_id, key=route_id):
         if is_selected:
             st.session_state["selected_routes"].remove(route_id)
@@ -76,13 +104,30 @@ for idx, route_id in enumerate(route_ids):
             st.session_state["selected_routes"].append(route_id)
 selected_routes = st.session_state["selected_routes"]
 
-# ------------------- Mappa ------------------
+# ----------------- MAPPA -----------------
 if selected_routes:
     coords_all = []
     center_lat = stops["stop_lat"].mean()
     center_lon = stops["stop_lon"].mean()
     m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
     stop_info = {}
+
+    # Aggiungi i poligoni dei quartieri
+    for feature in quartieri_geojson["features"]:
+        nome_q = feature["properties"].get("layer", "Sconosciuto")
+        if nome_q in quartieri_selezionati:
+            colore = colori_quartieri.get(nome_q, "#CCCCCC")
+            folium.GeoJson(
+                feature,
+                name=nome_q,
+                tooltip=folium.GeoJsonTooltip(fields=["layer"], aliases=["Quartiere"]),
+                style_function=lambda f, colore=colore: {
+                    "fillColor": colore,
+                    "color": colore,
+                    "weight": 2,
+                    "fillOpacity": 0.2
+                }
+            ).add_to(m)
 
     for route_id in selected_routes:
         color = route_colors[route_id]
@@ -93,6 +138,7 @@ if selected_routes:
             coords = list(zip(shape_pts["lat"], shape_pts["lon"]))
             coords_all += coords
             folium.PolyLine(coords, color=color, weight=5, opacity=0.7).add_to(m)
+
         trip_ids = trips_of_route["trip_id"].unique()
         stops_line = stop_times[stop_times["trip_id"].isin(trip_ids)].merge(stops, on="stop_id", how="left")
         for _, row in stops_line.iterrows():
@@ -122,7 +168,6 @@ if selected_routes:
     st.markdown(legend_html, unsafe_allow_html=True)
 
     # Marker fermate
-    from folium.features import CustomIcon
     logo_path = "01-CONEROBUS1-removebg-preview.png"
     plotted_stops = set()
     for sid, info in stop_info.items():
@@ -157,6 +202,8 @@ if selected_routes:
             icon=icon
         ).add_to(m)
         plotted_stops.add(sid)
+
+    folium.LayerControl(collapsed=False).add_to(m)
 
     st.markdown("### Mappa del servizio")
     st_folium(m, use_container_width=True, height=1000)
