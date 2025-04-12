@@ -67,15 +67,15 @@ quartieri_selezionati = st.multiselect(
 
 colori_quartieri = {
     "Smia - Zona Industriale": "orange",
-    "Coppi - Giardini": "lightgreen",
+    "Coppi - Giardini": "green",
     "Prato": "red",
     "Minonna": "blue",
     "Paradiso": "yellow",
-    "San Francesco": "pink",
-    "Erbarella - San Pietro Martire": "violet",
+    "San Francesco": "magenta",
+    "Erbarella - San Pietro Martire": "purple",
     "San Giuseppe": "brown",
-    "Centro Storico": "gray",
-    "Via Roma": "lightgray"
+    "Centro Storico": "black",
+    "Via Roma": "darkblue"
 }
 
 # ----------------- GESTIONE LINEE -----------------
