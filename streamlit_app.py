@@ -51,7 +51,7 @@ def load_data():
 stops, trips, stop_times, shapes, routes = load_data()
 
 # ----------------- QUARTIERI -----------------
-with open("data/quartieri_jesi.geojson", "r", encoding="utf-8") as f:
+with open("quartieri_jesi.geojson", "r", encoding="utf-8") as f:
     quartieri_geojson = json.load(f)
 
 quartieri_nomi = sorted(set(
