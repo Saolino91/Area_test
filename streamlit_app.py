@@ -72,7 +72,7 @@ colori_quartieri = {
     "Minonna": "blue",
     "Paradiso": "yellow",
     "San Francesco": "magenta",
-    "Erbarella - San Pietro Martire": "teal",
+    "Erbarella - San Pietro Martire": "darkred",
     "San Giuseppe": "brown",
     "Centro Storico": "black",
     "Via Roma": "darkblue"
