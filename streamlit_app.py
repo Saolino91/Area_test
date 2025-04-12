@@ -83,7 +83,7 @@ route_ids = sorted(trips["route_id"].unique())
 
 if "route_colors" not in st.session_state:
     st.session_state.route_colors = {}
-    color_list = ["red", "blue", "green", "orange", "purple", "pink", "cadetblue", "darkred", "gray", "beige"]
+    color_list = ["red", "blue", "green", "orange", "purple", "pink", "cadetblue", "darkred", "darkgreen", "black"]
     color_cycle = iter(color_list)
     for rid in route_ids:
         st.session_state.route_colors[rid] = next(color_cycle, "black")
