@@ -75,19 +75,20 @@ for nome, info in quartieri.items():
         colore = quartiere_colori.get(nome, "red")
 
     # Disegna poligono colorato
- gj = folium.GeoJson(
-    data=info["geometry"],
-    name=nome,
-    style_function=lambda feat, colore=colore: {
-        "fillColor": colore,
-        "color": "black",
-        "weight": 1.5,
-        "fillOpacity": 0.5
-    },
-    tooltip=folium.Tooltip(nome),
-    popup=folium.Popup(f"Clicca qui per selezionare {nome}", max_width=300)
-)
-gj.add_to(m)
+    gj = folium.GeoJson(
+        data=info["geometry"],
+        name=nome,
+        style_function=lambda feat, colore=colore: {
+            "fillColor": colore,
+            "color": "black",
+            "weight": 1.5,
+            "fillOpacity": 0.5
+        },
+        tooltip=folium.Tooltip(nome),
+        popup=folium.Popup(f"Clicca qui per selezionare {nome}", max_width=300)
+    )
+    gj.add_to(m)
+
 
 
     # Nome del quartiere visibile al centro
