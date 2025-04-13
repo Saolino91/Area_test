@@ -81,7 +81,7 @@ if step == 1:
     st.header("Step 1: Da dove parti?")
     via_partenza_input = st.text_input("Inserisci via, negozio o piazza di partenza")
     scelte_part = cerca_luoghi(via_partenza_input) if via_partenza_input else []
-    
+
     if scelte_part:
         labels = [f["display_name"] for f in scelte_part]
         scelta = st.selectbox("Seleziona il punto di partenza:", labels, key="sel_part")
@@ -97,7 +97,7 @@ elif step == 2:
     st.header("Step 2: Dove vuoi arrivare?")
     via_arrivo_input = st.text_input("Inserisci via, negozio o piazza di arrivo")
     scelte_arr = cerca_luoghi(via_arrivo_input) if via_arrivo_input else []
-    
+
     if scelte_arr:
         labels = [f["display_name"] for f in scelte_arr]
         scelta = st.selectbox("Seleziona il punto di arrivo:", labels, key="sel_arr")
@@ -107,133 +107,6 @@ elif step == 2:
             st.success(f"Hai selezionato: {scelta_originale['display_name']}")
         if st.button("Avanti"):
             st.session_state.step = 3
-
-# ---------------------- Step 3: Conferma e Visualizzazione ----------------------
-elif step == 3:
-    luogo_partenza = st.session_state.luogo_partenza
-    luogo_arrivo = st.session_state.luogo_arrivo
-    if luogo_partenza and luogo_arrivo:
-        lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
-        lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
-        
-        fermata_o = fermata_piu_vicina(lat1, lon1)
-        fermata_d = fermata_piu_vicina(lat2, lon2)
-        
-        quartiere_p = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
-        quartiere_a = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
-        
-        st.markdown(f"<span style='color:green'><b>Partenza:</b> {luogo_partenza['display_name']}</span>", unsafe_allow_html=True)
-        st.code(f"Coordinate: ({lat1}, {lon1})", language="text")
-        st.info(f"Fermata più vicina: {fermata_o['stop_name']} (ID: {fermata_o['stop_id']})")
-        
-        st.markdown(f"<span style='color:blue'><b>Arrivo:</b> {luogo_arrivo['display_name']}</span>", unsafe_allow_html=True)
-        st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
-        st.info(f"Fermata più vicina: {fermata_d['stop_name']} (ID: {fermata_d['stop_id']})")
-        
-        quartiere_colori = {
-            "Smia - Zona Industriale": "orange",
-            "Coppi - Giardini": "green",
-            "Prato": "red",
-            "Minonna": "blue",
-            "Paradiso": "yellow",
-            "San Francesco": "magenta",
-            "Erbarella - San Pietro Martire": "purple",
-            "San Giuseppe": "brown",
-            "Centro Storico": "black",
-            "Via Roma": "darkblue"
-        }
-        
-        m = folium.Map(location=[(lat1 + lat2) / 2, (lon1 + lon2) / 2], zoom_start=14)
-        
-        # Disegna i quartieri rilevanti
-        for feat in geojson_quartieri["features"]:
-            nome = feat["properties"].get("layer", "Sconosciuto")
-            if nome not in [quartiere_p, quartiere_a]:
-                continue
-            colore = quartiere_colori.get(nome, "#cccccc")
-            folium.GeoJson(
-                feat,
-                name=nome,
-                style_function=lambda f, c=colore: {
-                    "fillColor": c,
-                    "color": "black",
-                    "weight": 1.5,
-                    "fillOpacity": 0.6
-                }
-            ).add_to(m)
-            
-            centroide = shape(feat["geometry"]).centroid
-            folium.Marker(
-                location=[centroide.y, centroide.x],
-                icon=DivIcon(
-                    icon_size=(150, 36),
-                    icon_anchor=(0, 0),
-                    html=f'<div style="font-size: 10pt; font-weight: bold; color: white; background-color: rgba(0,0,0,0.5); padding: 2px; border-radius: 4px;">{nome}</div>'
-                )
-            ).add_to(m)
-        
-        # Marker personalizzati per partenza e arrivo (icone distinte)
-        departure_marker = folium.Marker(
-            location=[float(fermata_o["lat"]), float(fermata_o["lon"])],
-            tooltip=f"Fermata Partenza: {fermata_o['stop_name']}",
-            icon=folium.Icon(color="green", icon="play", prefix="fa")
-        )
-        arrival_marker = folium.Marker(
-            location=[float(fermata_d["lat"]), float(fermata_d["lon"])],
-            tooltip=f"Fermata Arrivo: {fermata_d['stop_name']}",
-            icon=folium.Icon(color="red", icon="flag", prefix="fa")
-        )
-        departure_marker.add_to(m)
-        arrival_marker.add_to(m)
-        
-        st.markdown("### :world_map: Mappa fermate e quartieri")
-        st_folium(m, height=600, use_container_width=True)
-        
-        # ---------------------- Salvataggio Risposta in CSV ----------------------
-if st.button("Conferma e vai al sondaggio"):
-    try:
-        st.write("👉 Entrato nel blocco di salvataggio CSV.")
-        ip = socket.gethostbyname(socket.gethostname())
-        file_path = os.path.abspath("risposte_grezze.csv")
-        st.write(f"📂 File path assoluto: {file_path}")
-
-        record = {
-            "timestamp": datetime.now().isoformat(),
-            "codice": ip,
-            "nome_luogo_partenza": luogo_partenza['display_name'],
-            "coord_partenza": f"({lat1}, {lon1})",
-            "quartiere_partenza": quartiere_p if quartiere_p is not None else "N/D",
-            "id_fermata_partenza": fermata_o['stop_id'],
-            "fermata_partenza": fermata_o['stop_name'],
-            "nome_luogo_arrivo": luogo_arrivo['display_name'],
-            "coord_arrivo": f"({lat2}, {lon2})",
-            "quartiere_arrivo": quartiere_a if quartiere_a is not None else "N/D",
-            "id_fermata_arrivo": fermata_d['stop_id'],
-            "fermata_arrivo": fermata_d['stop_name']
-        }
-
-        nuova = pd.DataFrame.from_records([record])
-        st.write("📝 Record pronto per essere salvato:")
-        st.json(record)
-
-        if os.path.exists(file_path):
-            st.write("🔍 Il file CSV esiste già.")
-            st.write(f"Dimensione file CSV esistente: {os.path.getsize(file_path)} bytes")
-        else:
-            st.write("⚠️ Il file CSV NON esiste e verrà creato ora.")
-
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            nuova.to_csv(file_path, mode="a", index=False, header=False)
-            st.write("✅ Record aggiunto al file CSV esistente.")
-        else:
-            nuova.to_csv(file_path, index=False)
-            st.write("✅ File CSV creato e record aggiunto con intestazione.")
-
-        st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
-        st.session_state.step = 4
-
-    except Exception as e:
-        st.error(f"🚨 ERRORE durante il salvataggio CSV: {e}")
 
 # ---------------------- Step 4: Prossimo modulo ----------------------
 elif step == 4:
