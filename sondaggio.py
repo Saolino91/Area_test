@@ -190,7 +190,7 @@ elif step == 3:
         st_folium(m, height=600, use_container_width=True)
         
         # ---------------------- Salvataggio Risposta in CSV ----------------------
-       if st.button("Conferma e vai al sondaggio"):
+if st.button("Conferma e vai al sondaggio"):
     try:
         st.write("👉 Entrato nel blocco di salvataggio CSV.")
         ip = socket.gethostbyname(socket.gethostname())
