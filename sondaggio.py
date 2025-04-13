@@ -104,16 +104,17 @@ gj.add_to(m)
 click_data = st_folium(m, height=500)
 
 # Gestione clic
+# Gestione clic basata sul tooltip
 if click_data and "last_object_clicked_tooltip" in click_data:
     nome_q = click_data["last_object_clicked_tooltip"]
-    if step == 1:
-        selected["origine"] = nome_q
-        st.session_state.step = 2
-    elif step == 2 and nome_q != selected["origine"]:
-        selected["destinazione"] = nome_q
-        st.session_state.step = 3
-    st.session_state.selected = selected
-
+    if nome_q:
+        if step == 1:
+            selected["origine"] = nome_q
+            st.session_state.step = 2
+        elif step == 2 and nome_q != selected["origine"]:
+            selected["destinazione"] = nome_q
+            st.session_state.step = 3
+        st.session_state.selected = selected
 
 # Pulsante reset
 if selected["origine"] or selected["destinazione"]:
