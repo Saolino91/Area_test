@@ -8,7 +8,6 @@ import socket
 from datetime import datetime
 from shapely.geometry import shape, Point
 from geopy.distance import geodesic
-import geopandas as gpd
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -41,9 +40,12 @@ fermate = [
     for _, row in fermate_df.iterrows()
 ]
 
-# ---------------------- Load vie ----------------------
-vie_gdf = gpd.read_file("vie_jesi.geojson")
-nomi_vie = sorted(vie_gdf["name"].dropna().unique().tolist())
+# ---------------------- Load vie (senza geopandas) ----------------------
+with open("vie_jesi.geojson", "r", encoding="utf-8") as f:
+    vie_geojson = json.load(f)
+
+# Estrai nomi vie
+nomi_vie = sorted({f["properties"].get("name", "") for f in vie_geojson["features"] if f["properties"].get("name")})
 
 # ---------------------- Funzioni ----------------------
 def trova_fermata_piu_vicina(lat, lon):
@@ -58,9 +60,10 @@ def trova_quartiere(lat, lon):
     return "Fuori Jesi"
 
 def centroide_via(nome_via):
-    sottogdf = vie_gdf[vie_gdf["name"] == nome_via]
-    if not sottogdf.empty:
-        return sottogdf.geometry.unary_union.centroid.y, sottogdf.geometry.unary_union.centroid.x
+    matching = [shape(f["geometry"]) for f in vie_geojson["features"] if f["properties"].get("name") == nome_via]
+    if matching:
+        union = matching[0] if len(matching) == 1 else matching[0].union(*matching[1:])
+        return union.centroid.y, union.centroid.x
     return None
 
 # ---------------------- Input indirizzi ----------------------
