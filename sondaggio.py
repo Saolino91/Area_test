@@ -10,6 +10,7 @@ import folium
 from folium.features import DivIcon
 from streamlit_folium import st_folium
 from shapely.geometry import shape, Point
+import os
 
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
