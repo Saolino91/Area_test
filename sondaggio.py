@@ -76,7 +76,7 @@ def fermata_piu_vicina(lat, lon):
 
 step = st.session_state.step
 
-# ---------------------- Step 1: Luogo di Partenza ----------------------
+# ---------------------- Step 1: Luogo di partenza ----------------------
 if step == 1:
     st.header("Step 1: Da dove parti?")
     via_partenza_input = st.text_input("Inserisci via, negozio o piazza di partenza")
@@ -92,7 +92,7 @@ if step == 1:
         if st.button("Avanti"):
             st.session_state.step = 2
 
-# ---------------------- Step 2: Luogo di Arrivo ----------------------
+# ---------------------- Step 2: Luogo di arrivo ----------------------
 elif step == 2:
     st.header("Step 2: Dove vuoi arrivare?")
     via_arrivo_input = st.text_input("Inserisci via, negozio o piazza di arrivo")
@@ -172,7 +172,7 @@ elif step == 3:
                 )
             ).add_to(m)
         
-        # Marker distinti per la fermata di partenza ed arrivo
+        # Marker personalizzati per partenza e arrivo (icone distinte)
         departure_marker = folium.Marker(
             location=[float(fermata_o["lat"]), float(fermata_o["lon"])],
             tooltip=f"Fermata Partenza: {fermata_o['stop_name']}",
@@ -189,39 +189,35 @@ elif step == 3:
         st.markdown("### :world_map: Mappa fermate e quartieri")
         st_folium(m, height=600, use_container_width=True)
         
+        # ---------------------- Salvataggio Risposta in CSV ----------------------
         if st.button("Conferma e vai al sondaggio"):
-            # Identificativo univoco, ad esempio l'indirizzo IP
             ip = socket.gethostbyname(socket.gethostname())
             file_path = "risposte_grezze.csv"
-            
-            # Costruzione del record con tutte le informazioni richieste
             record = {
-                "codice": ip,  # Codice o identificativo dell'utente (in questo caso l'IP)
-                "nome_partenza": luogo_partenza["display_name"],
-                "lat_p": lat1,
-                "lon_p": lon1,
-                "quartiere_p": quartiere_p,
-                "id_fermata_p": fermata_o["stop_id"],
-                "fermata_p": fermata_o["stop_name"],
-                "nome_arrivo": luogo_arrivo["display_name"],
-                "lat_a": lat2,
-                "lon_a": lon2,
-                "quartiere_a": quartiere_a,
-                "id_fermata_a": fermata_d["stop_id"],
-                "fermata_a": fermata_d["stop_name"]
+                "timestamp": datetime.now().isoformat(),
+                "codice": ip,
+                "nome_luogo_partenza": luogo_partenza['display_name'],
+                "coord_partenza": f"({lat1}, {lon1})",
+                "quartiere_partenza": quartiere_p if quartiere_p is not None else "N/D",
+                "id_fermata_partenza": fermata_o['stop_id'],
+                "fermata_partenza": fermata_o['stop_name'],
+                "nome_luogo_arrivo": luogo_arrivo['display_name'],
+                "coord_arrivo": f"({lat2}, {lon2})",
+                "quartiere_arrivo": quartiere_a if quartiere_a is not None else "N/D",
+                "id_fermata_arrivo": fermata_d['stop_id'],
+                "fermata_arrivo": fermata_d['stop_name']
             }
-            
-            # Creazione di un DataFrame dal record e scrittura/append sul file CSV
             nuova = pd.DataFrame.from_records([record])
-            if os.path.exists(file_path):
+            
+            # Se il file esiste, appende senza header, altrimenti lo crea con header
+            if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
                 nuova.to_csv(file_path, mode="a", index=False, header=False)
             else:
                 nuova.to_csv(file_path, index=False)
-            
-            st.success(":white_check_mark: Le risposte sono state registrate correttamente!")
+            st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
             st.session_state.step = 4
 
-# ---------------------- Step 4: Prossimo Modulo ----------------------
+# ---------------------- Step 4: Prossimo modulo ----------------------
 elif step == 4:
     st.header("Hai completato la prima parte del sondaggio!")
     st.markdown("Prosegui con la sezione successiva... (in fase di sviluppo)")
