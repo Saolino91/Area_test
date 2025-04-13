@@ -111,16 +111,10 @@ if click_data and "last_object_clicked" in click_data:
             st.toast(f"Quartiere {nome_q} già selezionato.")
         st.session_state.selected = selected
 
+# Bottone per resettare la selezione
+if selected["origine"] or selected["destinazione"]:
+    st.button("🔄 Reset selezione", on_click=lambda: st.session_state.update({"selected": {"origine": None, "destinazione": None}}))
 
-
-    if nome_q:
-        if selected["origine"] is None:
-            selected["origine"] = nome_q
-        elif selected["destinazione"] is None and nome_q != selected["origine"]:
-            selected["destinazione"] = nome_q
-        elif nome_q == selected["origine"] or nome_q == selected["destinazione"]:
-            st.toast(f"Quartiere {nome_q} già selezionato.")
-        st.session_state.selected = selected
 
 
 # Match click con quartiere più vicino
