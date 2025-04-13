@@ -1,14 +1,11 @@
 import streamlit as st
 import json
-import folium
-from streamlit_folium import st_folium
 import pandas as pd
 import os
 import socket
 from datetime import datetime
-from shapely.geometry import shape, Point
+from shapely.geometry import Point
 from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -16,7 +13,7 @@ st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 st.markdown("""
 Aiutaci a migliorare il servizio!
 
-Inserisci **via e numero civico** di partenza e di arrivo. Il sistema troverà automaticamente la fermata più vicina.
+Seleziona **via di partenza** e **via di arrivo** dalle vie esistenti. Il sistema troverà automaticamente la fermata più vicina.
 """)
 
 # ---------------------- Load fermate autobus ----------------------
@@ -31,32 +28,37 @@ fermate = [
     for _, row in fermate_df.iterrows()
 ]
 
-# ---------------------- Funzioni ----------------------
-geolocator = Nominatim(user_agent="tpl_jesi_app")
+# ---------------------- Load vie da GeoJSON ----------------------
+with open("vie_jesi.geojson", "r", encoding="utf-8") as f:
+    vie_geojson = json.load(f)
 
-def geocodifica_indirizzo(indirizzo):
-    try:
-        location = geolocator.geocode(f"{indirizzo}, Jesi, Italia")
-        if location:
-            return location.latitude, location.longitude
-    except:
-        return None
-    return None
+vie_dict = {}
+for feature in vie_geojson["elements"]:
+    if feature["type"] == "way":
+        tags = feature.get("tags", {})
+        nome_via = tags.get("name")
+        nodes = feature.get("geometry", [])
+        if nome_via and nodes:
+            lat = sum(p["lat"] for p in nodes) / len(nodes)
+            lon = sum(p["lon"] for p in nodes) / len(nodes)
+            vie_dict[nome_via] = (lat, lon)
+
+nomi_vie = sorted(vie_dict.keys())
+
+# ---------------------- Input indirizzi ----------------------
+st.markdown("### ✍️ Seleziona la via di partenza e di arrivo")
+via_partenza = st.selectbox("📍 Da dove parti?", nomi_vie)
+via_arrivo = st.selectbox("🏁 Dove vuoi arrivare?", nomi_vie)
+
+sessione_ready = False
 
 def trova_fermata_piu_vicina(lat, lon):
     punto = (lat, lon)
     return min(fermate, key=lambda f: geodesic(punto, (f["lat"], f["lon"])).meters)
 
-# ---------------------- Input indirizzi ----------------------
-st.markdown("### ✍️ Inserisci la tua partenza e destinazione con via e numero")
-via_partenza = st.text_input("📍 Da dove parti? (Es. Via Roma 23)")
-via_arrivo = st.text_input("🏁 Dove vuoi arrivare? (Es. Via Paradiso 45)")
-
-sessione_ready = False
-
 if via_partenza and via_arrivo:
-    coord_partenza = geocodifica_indirizzo(via_partenza)
-    coord_arrivo = geocodifica_indirizzo(via_arrivo)
+    coord_partenza = vie_dict.get(via_partenza)
+    coord_arrivo = vie_dict.get(via_arrivo)
 
     if coord_partenza and coord_arrivo:
         fermata_o = trova_fermata_piu_vicina(*coord_partenza)
@@ -69,7 +71,7 @@ if via_partenza and via_arrivo:
         st.session_state["destinazione"] = fermata_d["stop_name"]
         sessione_ready = True
     else:
-        st.error("❌ Non siamo riusciti a trovare le coordinate per una delle vie inserite.")
+        st.error("❌ Coordinate non trovate per una delle vie.")
 
 # ---------------------- FORM ----------------------
 if sessione_ready:
