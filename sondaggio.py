@@ -75,18 +75,20 @@ for nome, info in quartieri.items():
         colore = quartiere_colori.get(nome, "red")
 
     # Disegna poligono colorato
-    gj = folium.GeoJson(
-        info["geometry"],
-        name=nome,
-        tooltip=nome,
-        style_function=lambda feat, colore=colore: {
-            "fillColor": colore,
-            "color": "black",
-            "weight": 1.5,
-            "fillOpacity": 0.5
-        }
-    )
-    gj.add_to(m)
+ gj = folium.GeoJson(
+    data=info["geometry"],
+    name=nome,
+    style_function=lambda feat, colore=colore: {
+        "fillColor": colore,
+        "color": "black",
+        "weight": 1.5,
+        "fillOpacity": 0.5
+    },
+    tooltip=folium.Tooltip(nome),
+    popup=folium.Popup(f"Clicca qui per selezionare {nome}", max_width=300)
+)
+gj.add_to(m)
+
 
     # Nome del quartiere visibile al centro
     folium.map.Marker(
@@ -102,19 +104,16 @@ for nome, info in quartieri.items():
 click_data = st_folium(m, height=500)
 
 # Gestione clic
-if click_data and "last_object_clicked" in click_data:
-    clicked_obj = click_data["last_object_clicked"]
-    if isinstance(clicked_obj, dict):
-        props = clicked_obj.get("properties") or {}
-        nome_q = props.get("layer") or props.get("name") or props.get("tooltip")
-        if nome_q:
-            if step == 1:
-                selected["origine"] = nome_q
-                st.session_state.step = 2
-            elif step == 2 and nome_q != selected["origine"]:
-                selected["destinazione"] = nome_q
-                st.session_state.step = 3
-            st.session_state.selected = selected
+if click_data and "last_object_clicked_tooltip" in click_data:
+    nome_q = click_data["last_object_clicked_tooltip"]
+    if step == 1:
+        selected["origine"] = nome_q
+        st.session_state.step = 2
+    elif step == 2 and nome_q != selected["origine"]:
+        selected["destinazione"] = nome_q
+        st.session_state.step = 3
+    st.session_state.selected = selected
+
 
 # Pulsante reset
 if selected["origine"] or selected["destinazione"]:
