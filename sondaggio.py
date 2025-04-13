@@ -10,6 +10,7 @@ import folium
 from folium.features import CustomIcon, DivIcon
 from streamlit_folium import st_folium
 from shapely.geometry import shape, Point
+import base64
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title(":clipboard: Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -34,24 +35,27 @@ def cerca_luoghi(query):
         "limit": 5
     }
     headers = {"User-Agent": "conerobus-tpl-jesi/1.0"}
-    resp = requests.get(url, params=params, headers=headers)
-    if resp.status_code == 200:
-        return resp.json()
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        st.error("Errore nella richiesta di geocodifica.")
     return []
 
-# ---------------------- Load fermate autobus ----------------------
+# ---------------------- Caricamento Fermate ----------------------
 fermate_df = pd.read_csv("stops.txt")
 fermate = [
     {
         "stop_id": row["stop_id"],
         "stop_name": row["stop_name"],
-        "lat": row["stop_lat"],
-        "lon": row["stop_lon"]
+        "lat": float(row["stop_lat"]),
+        "lon": float(row["stop_lon"])
     }
     for _, row in fermate_df.iterrows()
 ]
 
-# ---------------------- Load quartieri ----------------------
+# ---------------------- Caricamento Quartieri ----------------------
 with open("quartieri_jesi.geojson", "r", encoding="utf-8") as f:
     geojson_quartieri = json.load(f)
 
@@ -70,6 +74,18 @@ def trova_quartiere(lat, lon):
 
 def fermata_piu_vicina(lat, lon):
     return min(fermate, key=lambda f: geodesic((lat, lon), (f["lat"], f["lon"])).meters)
+
+# ---------------------- Carica e codifica icona custom in Base64 ----------------------
+def get_custom_icon(path, size=(30,30)):
+    if not os.path.exists(path):
+        st.error("File immagine non trovato: " + path)
+        return None
+    with open(path, "rb") as img_file:
+        encoded_img = base64.b64encode(img_file.read()).decode('utf-8')
+    icon_data = f"data:image/png;base64,{encoded_img}"
+    return CustomIcon(icon_image=icon_data, icon_size=size)
+
+custom_icon = get_custom_icon("01-CONEROBUS1-removebg-preview.png", size=(30, 30))
 
 step = st.session_state.step
 
@@ -142,6 +158,7 @@ elif step == 3:
 
         m = folium.Map(location=[(lat1 + lat2) / 2, (lon1 + lon2) / 2], zoom_start=14)
 
+        # Disegno dei quartieri rilevanti
         for feat in geojson_quartieri["features"]:
             nome = feat["properties"].get("layer", "Sconosciuto")
             if nome not in [quartiere_p, quartiere_a]:
@@ -168,49 +185,12 @@ elif step == 3:
                 )
             ).add_to(m)
 
-        icon_path = os.path.join(os.getcwd(), "01-CONEROBUS1-removebg-preview.png")
-        custom_icon = CustomIcon(icon_image=icon_path, icon_size=(30, 30))
-
+        # Aggiunta dei marker per le fermate con conversione esplicita delle coordinate
         folium.Marker(
-            location=[fermata_o["lat"], fermata_o["lon"]],
+            location=[float(fermata_o["lat"]), float(fermata_o["lon"])],
             tooltip=f"Fermata Partenza: {fermata_o['stop_name']}",
-            icon=custom_icon
+            icon=custom_icon if custom_icon is not None else None
         ).add_to(m)
 
         folium.Marker(
-            location=[fermata_d["lat"], fermata_d["lon"]],
-            tooltip=f"Fermata Arrivo: {fermata_d['stop_name']}",
-            icon=custom_icon
-        ).add_to(m)
-
-        st.markdown("### :world_map: Mappa fermate e quartieri")
-        st_folium(m, height=600, use_container_width=True)
-
-        if st.button("Conferma e vai al sondaggio"):
-            ip = socket.gethostbyname(socket.gethostname())
-            file_path = "risposte_grezze.csv"
-            nuova = pd.DataFrame.from_records([{
-                "timestamp": datetime.now().isoformat(),
-                "ip": ip,
-                "partenza": luogo_partenza['display_name'],
-                "lat_p": lat1,
-                "lon_p": lon1,
-                "fermata_p": fermata_o['stop_name'],
-                "id_fermata_p": fermata_o['stop_id'],
-                "arrivo": luogo_arrivo['display_name'],
-                "lat_a": lat2,
-                "lon_a": lon2,
-                "fermata_a": fermata_d['stop_name'],
-                "id_fermata_a": fermata_d['stop_id']
-            }])
-            if os.path.exists(file_path):
-                nuova.to_csv(file_path, mode="a", index=False, header=False)
-            else:
-                nuova.to_csv(file_path, index=False)
-            st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
-            st.session_state.step = 4
-
-# ---------------------- Step 4: Prossimo modulo ----------------------
-elif step == 4:
-    st.header("Hai completato la prima parte del sondaggio!")
-    st.markdown("Prosegui con la sezione successiva... (in fase di sviluppo)")
+            location=[float(fermata
