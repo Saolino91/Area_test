@@ -44,8 +44,12 @@ fermate = [
 with open("vie_jesi.geojson", "r", encoding="utf-8") as f:
     vie_geojson = json.load(f)
 
-# Estrai nomi vie
-nomi_vie = sorted({f["properties"].get("name", "") for f in vie_geojson["features"] if f["properties"].get("name")})
+# Estrai nomi vie corretti dalla struttura "tags"
+nomi_vie = sorted({
+    elem["tags"]["name"]
+    for elem in vie_geojson["elements"]
+    if elem.get("tags") and "name" in elem["tags"]
+})
 
 # ---------------------- Funzioni ----------------------
 def trova_fermata_piu_vicina(lat, lon):
@@ -60,7 +64,7 @@ def trova_quartiere(lat, lon):
     return "Fuori Jesi"
 
 def centroide_via(nome_via):
-    matching = [shape(f["geometry"]) for f in vie_geojson["features"] if f["properties"].get("name") == nome_via]
+    matching = [shape(f["geometry"]) for f in vie_geojson["elements"] if f.get("tags", {}).get("name") == nome_via and "geometry" in f]
     if matching:
         union = matching[0] if len(matching) == 1 else matching[0].union(*matching[1:])
         return union.centroid.y, union.centroid.x
