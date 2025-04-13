@@ -11,8 +11,6 @@ from folium.features import DivIcon
 from streamlit_folium import st_folium
 from shapely.geometry import shape, Point
 
-import os
-st.write(f"Sto scrivendo nella directory: {os.getcwd()}")
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title(":clipboard: Sondaggio sul Trasporto Pubblico Urbano di Jesi")
