@@ -15,8 +15,7 @@ st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 st.markdown("""
 Aiutaci a migliorare il servizio!
 
-Seleziona la **via di partenza** e la **via di arrivo** dal menu a discesa.
-Il sistema cercherà la fermata più vicina e il quartiere corrispondente.
+Scrivi la **via di partenza** e la **via di arrivo**. Il sistema ti suggerirà le vie corrette e identificherà automaticamente la fermata e il quartiere più vicini.
 """)
 
 # ---------------------- Load quartieri ----------------------
@@ -42,18 +41,15 @@ fermate = [
 ]
 
 # ---------------------- Load vie Jesi ----------------------
-vie = sorted(set(fermate_df["stop_name"].str.extract(r"via (.*)", expand=False).dropna().str.title().unique()))
+vie_raw = fermate_df["stop_name"].str.extract(r"via (.*)", expand=False).dropna().str.title().unique()
+vie = sorted(set(vie_raw))
 
 # ---------------------- Funzioni ----------------------
-def fermata_piu_vicina(lat, lon):
-    min_dist = float("inf")
-    fermata_vicina = None
-    for fermata in fermate:
-        dist = geodesic((lat, lon), (fermata["lat"], fermata["lon"])).meters
-        if dist < min_dist:
-            min_dist = dist
-            fermata_vicina = fermata
-    return fermata_vicina
+def fermata_piu_vicina(via):
+    for f in fermate:
+        if via.lower() in f["stop_name"].lower():
+            return f
+    return None
 
 def trova_quartiere(lat, lon):
     punto = Point(lon, lat)
@@ -62,22 +58,33 @@ def trova_quartiere(lat, lon):
             return nome
     return "Fuori Jesi"
 
-# ---------------------- Input guidato ----------------------
-st.markdown("#### Seleziona le vie")
-via_partenza = st.selectbox("📍 Da dove parti?", vie)
-via_arrivo = st.selectbox("🏁 Dove vuoi arrivare?", vie)
+# ---------------------- Input testuale con validazione ----------------------
+st.markdown("#### Scrivi le vie (scegli tra quelle suggerite)")
+input_via_partenza = st.text_input("📍 Da dove parti?").strip().title()
+input_via_arrivo = st.text_input("🏁 Dove vuoi arrivare?").strip().title()
+
+suggerite_p = [v for v in vie if input_via_partenza and input_via_partenza in v]
+suggerite_a = [v for v in vie if input_via_arrivo and input_via_arrivo in v]
+
+if input_via_partenza and input_via_partenza not in vie:
+    st.warning("Via di partenza non trovata nei dati.")
+if input_via_arrivo and input_via_arrivo not in vie:
+    st.warning("Via di arrivo non trovata nei dati.")
+
+if suggerite_p:
+    st.markdown("**Suggerimenti partenza:** " + ", ".join(suggerite_p))
+if suggerite_a:
+    st.markdown("**Suggerimenti arrivo:** " + ", ".join(suggerite_a))
 
 fermata_o = fermata_d = None
 origine = destinazione = None
 sessione_ready = False
 
-if via_partenza and via_arrivo:
-    fermate_p = [f for f in fermate if via_partenza.lower() in f["stop_name"].lower()]
-    fermate_a = [f for f in fermate if via_arrivo.lower() in f["stop_name"].lower()]
-    
-    if fermate_p and fermate_a:
-        fermata_o = fermate_p[0]  # prendi la prima fermata trovata su quella via
-        fermata_d = fermate_a[0]
+if input_via_partenza in vie and input_via_arrivo in vie:
+    fermata_o = fermata_piu_vicina(input_via_partenza)
+    fermata_d = fermata_piu_vicina(input_via_arrivo)
+
+    if fermata_o and fermata_d:
         origine = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
         destinazione = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
 
@@ -88,7 +95,7 @@ if via_partenza and via_arrivo:
         st.session_state["destinazione"] = destinazione
         sessione_ready = True
     else:
-        st.warning("Non sono riuscito a trovare una fermata per le vie selezionate.")
+        st.warning("Nessuna fermata trovata per una delle due vie selezionate.")
 
 # ---------------------- FORM ----------------------
 if sessione_ready:
