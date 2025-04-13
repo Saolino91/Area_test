@@ -8,6 +8,7 @@ import socket
 from datetime import datetime
 from shapely.geometry import shape, Point
 from geopy.distance import geodesic
+from geopy.geocoders import Nominatim
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -15,7 +16,7 @@ st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 st.markdown("""
 Aiutaci a migliorare il servizio!
 
-Seleziona la **via di partenza** e la **via di arrivo** dall'elenco. Il sistema identificherà automaticamente la fermata e il quartiere più vicini.
+Inserisci **via di partenza** e **via di arrivo**. Il sistema cercherà la fermata più vicina e il quartiere.
 """)
 
 # ---------------------- Load quartieri ----------------------
@@ -40,16 +41,21 @@ fermate = [
     for _, row in fermate_df.iterrows()
 ]
 
-# ---------------------- Load vie Jesi ----------------------
-vie_raw = fermate_df["stop_name"].str.extract(r"via (.*)", expand=False).dropna().str.title().unique()
-vie = sorted(set(vie_raw))
-
 # ---------------------- Funzioni ----------------------
-def fermata_piu_vicina(via):
-    for f in fermate:
-        if isinstance(f["stop_name"], str) and via.lower() in f["stop_name"].lower():
-            return f
+geolocator = Nominatim(user_agent="tpl_jesi_app")
+
+def geocodifica(via):
+    try:
+        location = geolocator.geocode(f"{via}, Jesi")
+        if location:
+            return location.latitude, location.longitude
+    except:
+        return None
     return None
+
+def trova_fermata_piu_vicina(lat, lon):
+    punto = (lat, lon)
+    return min(fermate, key=lambda f: geodesic(punto, (f["lat"], f["lon"])).meters)
 
 def trova_quartiere(lat, lon):
     punto = Point(lon, lat)
@@ -58,28 +64,32 @@ def trova_quartiere(lat, lon):
             return nome
     return "Fuori Jesi"
 
-# ---------------------- Input con selezione guidata ----------------------
-st.markdown("#### Seleziona la tua zona di partenza e arrivo")
-input_via_partenza = st.selectbox("📍 Da dove parti?", vie, index=0)
-input_via_arrivo = st.selectbox("🏁 Dove vuoi arrivare?", vie, index=0)
+# ---------------------- Input indirizzi ----------------------
+st.markdown("#### Inserisci gli indirizzi")
+via_partenza = st.text_input("📍 Da dove parti? (Es. Via Roma)")
+via_arrivo = st.text_input("🏁 Dove vuoi arrivare? (Es. Via Paradiso)")
 
-fermata_o = fermata_piu_vicina(input_via_partenza)
-fermata_d = fermata_piu_vicina(input_via_arrivo)
-origine = destinazione = None
 sessione_ready = False
 
-if fermata_o and fermata_d:
-    origine = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
-    destinazione = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
+if via_partenza and via_arrivo:
+    coord_partenza = geocodifica(via_partenza)
+    coord_arrivo = geocodifica(via_arrivo)
 
-    st.success(f"Origine: {origine} (fermata {fermata_o['stop_name']})")
-    st.success(f"Destinazione: {destinazione} (fermata {fermata_d['stop_name']})")
+    if coord_partenza and coord_arrivo:
+        fermata_o = trova_fermata_piu_vicina(*coord_partenza)
+        fermata_d = trova_fermata_piu_vicina(*coord_arrivo)
 
-    st.session_state["origine"] = origine
-    st.session_state["destinazione"] = destinazione
-    sessione_ready = True
-else:
-    st.warning("Nessuna fermata trovata per una delle due vie selezionate.")
+        origine = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
+        destinazione = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
+
+        st.success(f"Origine: {origine} (fermata {fermata_o['stop_name']})")
+        st.success(f"Destinazione: {destinazione} (fermata {fermata_d['stop_name']})")
+
+        st.session_state["origine"] = origine
+        st.session_state["destinazione"] = destinazione
+        sessione_ready = True
+    else:
+        st.error("Non siamo riusciti a trovare le coordinate per una delle vie inserite.")
 
 # ---------------------- FORM ----------------------
 if sessione_ready:
