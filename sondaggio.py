@@ -8,7 +8,7 @@ import socket
 from datetime import datetime
 from shapely.geometry import shape, Point
 from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
+import geopandas as gpd
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -41,18 +41,11 @@ fermate = [
     for _, row in fermate_df.iterrows()
 ]
 
+# ---------------------- Load vie ----------------------
+vie_gdf = gpd.read_file("vie_jesi.geojson")
+nomi_vie = sorted(vie_gdf["name"].dropna().unique().tolist())
+
 # ---------------------- Funzioni ----------------------
-geolocator = Nominatim(user_agent="tpl_jesi_app")
-
-def geocodifica(via):
-    try:
-        location = geolocator.geocode(f"{via}, Jesi")
-        if location:
-            return location.latitude, location.longitude
-    except:
-        return None
-    return None
-
 def trova_fermata_piu_vicina(lat, lon):
     punto = (lat, lon)
     return min(fermate, key=lambda f: geodesic(punto, (f["lat"], f["lon"])).meters)
@@ -64,16 +57,22 @@ def trova_quartiere(lat, lon):
             return nome
     return "Fuori Jesi"
 
+def centroide_via(nome_via):
+    sottogdf = vie_gdf[vie_gdf["name"] == nome_via]
+    if not sottogdf.empty:
+        return sottogdf.geometry.unary_union.centroid.y, sottogdf.geometry.unary_union.centroid.x
+    return None
+
 # ---------------------- Input indirizzi ----------------------
-st.markdown("#### Inserisci gli indirizzi")
-via_partenza = st.text_input("📍 Da dove parti? (Es. Via Roma)")
-via_arrivo = st.text_input("🏁 Dove vuoi arrivare? (Es. Via Paradiso)")
+st.markdown("### ✍️ Inserisci la tua partenza e destinazione")
+via_partenza = st.selectbox("📍 Da dove parti?", nomi_vie)
+via_arrivo = st.selectbox("🏁 Dove vuoi arrivare?", nomi_vie)
 
 sessione_ready = False
 
 if via_partenza and via_arrivo:
-    coord_partenza = geocodifica(via_partenza)
-    coord_arrivo = geocodifica(via_arrivo)
+    coord_partenza = centroide_via(via_partenza)
+    coord_arrivo = centroide_via(via_arrivo)
 
     if coord_partenza and coord_arrivo:
         fermata_o = trova_fermata_piu_vicina(*coord_partenza)
@@ -89,7 +88,7 @@ if via_partenza and via_arrivo:
         st.session_state["destinazione"] = destinazione
         sessione_ready = True
     else:
-        st.error("Non siamo riusciti a trovare le coordinate per una delle vie inserite.")
+        st.error("Non siamo riusciti a trovare le coordinate per una delle vie selezionate.")
 
 # ---------------------- FORM ----------------------
 if sessione_ready:
