@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from geopy.distance import geodesic
 import folium
-from folium.features import CustomIcon
+from folium.features import CustomIcon, DivIcon
 from streamlit_folium import st_folium
 from shapely.geometry import shape, Point
 
@@ -127,25 +127,44 @@ elif step == 3:
         st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
         st.info(f"Fermata più vicina: {fermata_d['stop_name']} (ID: {fermata_d['stop_id']})")
 
-        colori = {
-            quartiere_p: "green",
-            quartiere_a: "blue"
+        quartiere_colori = {
+            "Smia - Zona Industriale": "orange",
+            "Coppi - Giardini": "green",
+            "Prato": "red",
+            "Minonna": "blue",
+            "Paradiso": "yellow",
+            "San Francesco": "magenta",
+            "Erbarella - San Pietro Martire": "purple",
+            "San Giuseppe": "brown",
+            "Centro Storico": "black",
+            "Via Roma": "darkblue"
         }
+
         m = folium.Map(location=[(lat1 + lat2) / 2, (lon1 + lon2) / 2], zoom_start=14)
 
         for feat in geojson_quartieri["features"]:
             nome = feat["properties"].get("layer", "Sconosciuto")
-            colore = colori.get(nome, "#cccccc")
+            colore = quartiere_colori.get(nome, "#cccccc")
             folium.GeoJson(
                 feat,
                 name=nome,
-                style_function=lambda f, c=colore, n=nome: {
+                style_function=lambda f, c=colore: {
                     "fillColor": c,
                     "color": "black",
                     "weight": 1.5,
-                    "fillOpacity": 0.6 if n in colori else 0.1
-                },
-                tooltip=nome
+                    "fillOpacity": 0.6
+                }
+            ).add_to(m)
+
+            # Nome al centro
+            centroide = shape(feat["geometry"]).centroid
+            folium.Marker(
+                location=[centroide.y, centroide.x],
+                icon=DivIcon(
+                    icon_size=(150, 36),
+                    icon_anchor=(0, 0),
+                    html=f'<div style="font-size: 10pt; font-weight: bold; color: white; background-color: rgba(0,0,0,0.5); padding: 2px; border-radius: 4px;">{nome}</div>'
+                )
             ).add_to(m)
 
         icon_path = "01-CONEROBUS1-removebg-preview.png"
