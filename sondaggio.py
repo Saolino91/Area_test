@@ -8,6 +8,7 @@ import socket
 from datetime import datetime
 from shapely.geometry import shape, Point
 from geopy.distance import geodesic
+from geopy.geocoders import Nominatim
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -15,7 +16,7 @@ st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 st.markdown("""
 Aiutaci a migliorare il servizio!
 
-Inserisci **via di partenza** e **via di arrivo**. Il sistema cercherà la fermata più vicina e il quartiere.
+Inserisci **via e numero civico** di partenza e di arrivo. Il sistema troverà automaticamente la fermata più vicina e il quartiere.
 """)
 
 # ---------------------- Load quartieri ----------------------
@@ -40,18 +41,18 @@ fermate = [
     for _, row in fermate_df.iterrows()
 ]
 
-# ---------------------- Load vie (senza geopandas) ----------------------
-with open("vie_jesi.geojson", "r", encoding="utf-8") as f:
-    vie_geojson = json.load(f)
-
-# Estrai nomi vie corretti dalla struttura "tags"
-nomi_vie = sorted({
-    elem["tags"]["name"]
-    for elem in vie_geojson["elements"]
-    if elem.get("tags") and "name" in elem["tags"]
-})
-
 # ---------------------- Funzioni ----------------------
+geolocator = Nominatim(user_agent="tpl_jesi_app")
+
+def geocodifica_indirizzo(indirizzo):
+    try:
+        location = geolocator.geocode(f"{indirizzo}, Jesi, Italia")
+        if location:
+            return location.latitude, location.longitude
+    except:
+        return None
+    return None
+
 def trova_fermata_piu_vicina(lat, lon):
     punto = (lat, lon)
     return min(fermate, key=lambda f: geodesic(punto, (f["lat"], f["lon"])).meters)
@@ -63,23 +64,16 @@ def trova_quartiere(lat, lon):
             return nome
     return "Fuori Jesi"
 
-def centroide_via(nome_via):
-    matching = [shape(f["geometry"]) for f in vie_geojson["elements"] if f.get("tags", {}).get("name") == nome_via and "geometry" in f]
-    if matching:
-        union = matching[0] if len(matching) == 1 else matching[0].union(*matching[1:])
-        return union.centroid.y, union.centroid.x
-    return None
-
 # ---------------------- Input indirizzi ----------------------
-st.markdown("### ✍️ Inserisci la tua partenza e destinazione")
-via_partenza = st.selectbox("📍 Da dove parti?", nomi_vie)
-via_arrivo = st.selectbox("🏁 Dove vuoi arrivare?", nomi_vie)
+st.markdown("### ✍️ Inserisci la tua partenza e destinazione con via e numero")
+via_partenza = st.text_input("📍 Da dove parti? (Es. Via Roma 23)")
+via_arrivo = st.text_input("🏁 Dove vuoi arrivare? (Es. Via Paradiso 45)")
 
 sessione_ready = False
 
 if via_partenza and via_arrivo:
-    coord_partenza = centroide_via(via_partenza)
-    coord_arrivo = centroide_via(via_arrivo)
+    coord_partenza = geocodifica_indirizzo(via_partenza)
+    coord_arrivo = geocodifica_indirizzo(via_arrivo)
 
     if coord_partenza and coord_arrivo:
         fermata_o = trova_fermata_piu_vicina(*coord_partenza)
@@ -95,7 +89,7 @@ if via_partenza and via_arrivo:
         st.session_state["destinazione"] = destinazione
         sessione_ready = True
     else:
-        st.error("Non siamo riusciti a trovare le coordinate per una delle vie selezionate.")
+        st.error("❌ Non siamo riusciti a trovare le coordinate per una delle vie inserite.")
 
 # ---------------------- FORM ----------------------
 if sessione_ready:
