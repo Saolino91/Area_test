@@ -3,8 +3,13 @@ import requests
 import pandas as pd
 import os
 import socket
+import json
 from datetime import datetime
 from geopy.distance import geodesic
+import folium
+from folium.features import CustomIcon
+from streamlit_folium import st_folium
+from shapely.geometry import shape, Point
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title(":clipboard: Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -46,6 +51,23 @@ fermate = [
     for _, row in fermate_df.iterrows()
 ]
 
+# ---------------------- Load quartieri ----------------------
+with open("quartieri_jesi.geojson", "r", encoding="utf-8") as f:
+    geojson_quartieri = json.load(f)
+
+quartieri = {}
+for feat in geojson_quartieri["features"]:
+    nome = feat["properties"].get("layer", "Sconosciuto")
+    geom = shape(feat["geometry"])
+    quartieri[nome] = geom
+
+def trova_quartiere(lat, lon):
+    punto = Point(lon, lat)
+    for nome, geom in quartieri.items():
+        if geom.contains(punto):
+            return nome
+    return None
+
 def fermata_piu_vicina(lat, lon):
     return min(fermate, key=lambda f: geodesic((lat, lon), (f["lat"], f["lon"])).meters)
 
@@ -83,7 +105,7 @@ elif step == 2:
         if st.button("Avanti"):
             st.session_state.step = 3
 
-# ---------------------- Step 3: Conferma e salvataggio ----------------------
+# ---------------------- Step 3: Conferma e visualizzazione ----------------------
 elif step == 3:
     luogo_partenza = st.session_state.luogo_partenza
     luogo_arrivo = st.session_state.luogo_arrivo
@@ -94,6 +116,9 @@ elif step == 3:
         fermata_o = fermata_piu_vicina(lat1, lon1)
         fermata_d = fermata_piu_vicina(lat2, lon2)
 
+        quartiere_p = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
+        quartiere_a = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
+
         st.markdown(f"<span style='color:green'><b>Partenza:</b> {luogo_partenza['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat1}, {lon1})", language="text")
         st.info(f"Fermata più vicina: {fermata_o['stop_name']} (ID: {fermata_o['stop_id']})")
@@ -101,6 +126,46 @@ elif step == 3:
         st.markdown(f"<span style='color:blue'><b>Arrivo:</b> {luogo_arrivo['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
         st.info(f"Fermata più vicina: {fermata_d['stop_name']} (ID: {fermata_d['stop_id']})")
+
+        # Visualizzazione mappa con quartieri evidenziati
+        colori = {
+            quartiere_p: "green",
+            quartiere_a: "blue"
+        }
+        m = folium.Map(location=[(lat1 + lat2) / 2, (lon1 + lon2) / 2], zoom_start=14)
+
+        for feat in geojson_quartieri["features"]:
+            nome = feat["properties"].get("layer", "Sconosciuto")
+            colore = colori.get(nome, "#cccccc")
+            folium.GeoJson(
+                feat,
+                name=nome,
+                style_function=lambda f, c=colore: {
+                    "fillColor": c,
+                    "color": "black",
+                    "weight": 1.5,
+                    "fillOpacity": 0.4 if nome in colori else 0.1
+                },
+                tooltip=nome
+            ).add_to(m)
+
+        icon_path = "01-CONEROBUS1-removebg-preview.png"
+        custom_icon = CustomIcon(icon_image=icon_path, icon_size=(30, 30))
+
+        folium.Marker(
+            location=[fermata_o["lat"], fermata_o["lon"]],
+            tooltip=f"Fermata Partenza: {fermata_o['stop_name']}",
+            icon=custom_icon
+        ).add_to(m)
+
+        folium.Marker(
+            location=[fermata_d["lat"], fermata_d["lon"]],
+            tooltip=f"Fermata Arrivo: {fermata_d['stop_name']}",
+            icon=custom_icon
+        ).add_to(m)
+
+        st.markdown("### :world_map: Mappa fermate e quartieri")
+        st_folium(m, height=600, use_container_width=True)
 
         if st.button("Conferma e vai al sondaggio"):
             ip = socket.gethostbyname(socket.gethostname())
