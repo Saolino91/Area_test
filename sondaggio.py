@@ -112,23 +112,25 @@ elif step == 2:
 
 # ---------------------- Step 3: Conferma e Visualizzazione ----------------------
 elif step == 3:
-    luogo_partenza = st.session_state.get("luogo_partenza")  # Usa .get() per evitare errori se non esiste
-    luogo_arrivo = st.session_state.get("luogo_arrivo")      # Usa .get() per evitare errori se non esiste
-
-    if not luogo_partenza or not luogo_arrivo:  # Controlla se sono definiti
+    # Recupera i dati da st.session_state con un controllo di fallback
+    luogo_partenza = st.session_state.get("luogo_partenza")
+    luogo_arrivo = st.session_state.get("luogo_arrivo")
+    
+    # Controlla se i dati necessari sono stati definiti
+    if not luogo_partenza or not luogo_arrivo:
         st.error("Errore: Devi completare gli step precedenti per scegliere un punto di partenza e uno di arrivo.")
     else:
+        # Prosegui solo se i dati sono disponibili
         lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
         lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
         
-        # Continua con il resto del codice dello Step 3
         fermata_o = fermata_piu_vicina(lat1, lon1)
         fermata_d = fermata_piu_vicina(lat2, lon2)
         
         quartiere_p = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
         quartiere_a = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
         
-        # Mostra i dettagli e la mappa
+        # Mostra i dettagli di partenza e arrivo
         st.markdown(f"<span style='color:green'><b>Partenza:</b> {luogo_partenza['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat1}, {lon1})", language="text")
         st.info(f"Fermata più vicina: {fermata_o['stop_name']} (ID: {fermata_o['stop_id']})")
@@ -136,6 +138,8 @@ elif step == 3:
         st.markdown(f"<span style='color:blue'><b>Arrivo:</b> {luogo_arrivo['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
         st.info(f"Fermata più vicina: {fermata_d['stop_name']} (ID: {fermata_d['stop_id']})")
+        
+        # Continua con la mappa e il salvataggio
         
         
         quartiere_colori = {
