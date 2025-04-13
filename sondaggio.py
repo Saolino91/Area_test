@@ -75,7 +75,7 @@ for nome, info in quartieri.items():
         colore = quartiere_colori.get(nome, "red")
 
     # Disegna poligono colorato
-    folium.GeoJson(
+    gj = folium.GeoJson(
         info["geometry"],
         name=nome,
         tooltip=nome,
@@ -85,7 +85,9 @@ for nome, info in quartieri.items():
             "weight": 1.5,
             "fillOpacity": 0.5
         }
-    ).add_to(m)
+    )
+    gj.add_to(m)
+    gj.add_child(folium.features.GeoJsonPopup(fields=[]))
 
     # Nome del quartiere visibile al centro
     folium.map.Marker(
@@ -102,16 +104,18 @@ click_data = st_folium(m, height=500)
 
 # Gestione clic
 if click_data and "last_object_clicked" in click_data:
-    props = click_data["last_object_clicked"].get("properties", {})
-    nome_q = props.get("layer") or props.get("name") or props.get("tooltip")
-    if nome_q:
-        if step == 1:
-            selected["origine"] = nome_q
-            st.session_state.step = 2
-        elif step == 2 and nome_q != selected["origine"]:
-            selected["destinazione"] = nome_q
-            st.session_state.step = 3
-        st.session_state.selected = selected
+    clicked_obj = click_data["last_object_clicked"]
+    if isinstance(clicked_obj, dict):
+        props = clicked_obj.get("properties") or {}
+        nome_q = props.get("layer") or props.get("name") or props.get("tooltip")
+        if nome_q:
+            if step == 1:
+                selected["origine"] = nome_q
+                st.session_state.step = 2
+            elif step == 2 and nome_q != selected["origine"]:
+                selected["destinazione"] = nome_q
+                st.session_state.step = 3
+            st.session_state.selected = selected
 
 # Pulsante reset
 if selected["origine"] or selected["destinazione"]:
