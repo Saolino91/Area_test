@@ -189,17 +189,17 @@ elif step == 3:
         
         st.markdown("### :world_map: Mappa fermate e quartieri")
         st_folium(m, height=600, use_container_width=True)
-
-        import os
-if os.access("risposte_grezze.csv", os.W_OK):
-    print("Il file è scrivibile.")
-else:
-    print("Il file non è scrivibile.")
         
         # ---------------------- Salvataggio Risposta in CSV ----------------------
         if st.button("Conferma e vai al sondaggio"):
             ip = socket.gethostbyname(socket.gethostname())
             file_path = "risposte_grezze.csv"
+
+             # Verifica se il file è scrivibile
+        if not os.access(file_path, os.W_OK):
+            st.error(f"Il file {file_path} non è scrivibile. Controlla i permessi!")
+
+        
             record = {
                 "timestamp": datetime.now().isoformat(),
                 "codice": ip,
