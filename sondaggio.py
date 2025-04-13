@@ -87,7 +87,6 @@ for nome, info in quartieri.items():
         }
     )
     gj.add_to(m)
-    gj.add_child(folium.features.GeoJsonPopup(fields=[]))
 
     # Nome del quartiere visibile al centro
     folium.map.Marker(
