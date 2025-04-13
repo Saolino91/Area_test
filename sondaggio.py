@@ -76,7 +76,7 @@ def fermata_piu_vicina(lat, lon):
 
 step = st.session_state.step
 
-# ---------------------- Step 1: Luogo di partenza ----------------------
+# ---------------------- Step 1: Luogo di Partenza ----------------------
 if step == 1:
     st.header("Step 1: Da dove parti?")
     via_partenza_input = st.text_input("Inserisci via, negozio o piazza di partenza")
@@ -92,7 +92,7 @@ if step == 1:
         if st.button("Avanti"):
             st.session_state.step = 2
 
-# ---------------------- Step 2: Luogo di arrivo ----------------------
+# ---------------------- Step 2: Luogo di Arrivo ----------------------
 elif step == 2:
     st.header("Step 2: Dove vuoi arrivare?")
     via_arrivo_input = st.text_input("Inserisci via, negozio o piazza di arrivo")
@@ -145,7 +145,7 @@ elif step == 3:
         
         m = folium.Map(location=[(lat1 + lat2) / 2, (lon1 + lon2) / 2], zoom_start=14)
         
-        # Disegna i quartieri
+        # Disegna i quartieri rilevanti
         for feat in geojson_quartieri["features"]:
             nome = feat["properties"].get("layer", "Sconosciuto")
             if nome not in [quartiere_p, quartiere_a]:
@@ -172,7 +172,7 @@ elif step == 3:
                 )
             ).add_to(m)
         
-        # Marker personalizzati per fermata di partenza e arrivo
+        # Marker distinti per la fermata di partenza ed arrivo
         departure_marker = folium.Marker(
             location=[float(fermata_o["lat"]), float(fermata_o["lon"])],
             tooltip=f"Fermata Partenza: {fermata_o['stop_name']}",
@@ -190,30 +190,38 @@ elif step == 3:
         st_folium(m, height=600, use_container_width=True)
         
         if st.button("Conferma e vai al sondaggio"):
+            # Identificativo univoco, ad esempio l'indirizzo IP
             ip = socket.gethostbyname(socket.gethostname())
             file_path = "risposte_grezze.csv"
-            nuova = pd.DataFrame.from_records([{
-                "timestamp": datetime.now().isoformat(),
-                "ip": ip,
-                "partenza": luogo_partenza['display_name'],
+            
+            # Costruzione del record con tutte le informazioni richieste
+            record = {
+                "codice": ip,  # Codice o identificativo dell'utente (in questo caso l'IP)
+                "nome_partenza": luogo_partenza["display_name"],
                 "lat_p": lat1,
                 "lon_p": lon1,
-                "fermata_p": fermata_o['stop_name'],
-                "id_fermata_p": fermata_o['stop_id'],
-                "arrivo": luogo_arrivo['display_name'],
+                "quartiere_p": quartiere_p,
+                "id_fermata_p": fermata_o["stop_id"],
+                "fermata_p": fermata_o["stop_name"],
+                "nome_arrivo": luogo_arrivo["display_name"],
                 "lat_a": lat2,
                 "lon_a": lon2,
-                "fermata_a": fermata_d['stop_name'],
-                "id_fermata_a": fermata_d['stop_id']
-            }])
+                "quartiere_a": quartiere_a,
+                "id_fermata_a": fermata_d["stop_id"],
+                "fermata_a": fermata_d["stop_name"]
+            }
+            
+            # Creazione di un DataFrame dal record e scrittura/append sul file CSV
+            nuova = pd.DataFrame.from_records([record])
             if os.path.exists(file_path):
                 nuova.to_csv(file_path, mode="a", index=False, header=False)
             else:
                 nuova.to_csv(file_path, index=False)
-            st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
+            
+            st.success(":white_check_mark: Le risposte sono state registrate correttamente!")
             st.session_state.step = 4
 
-# ---------------------- Step 4: Prossimo modulo ----------------------
+# ---------------------- Step 4: Prossimo Modulo ----------------------
 elif step == 4:
     st.header("Hai completato la prima parte del sondaggio!")
     st.markdown("Prosegui con la sezione successiva... (in fase di sviluppo)")
