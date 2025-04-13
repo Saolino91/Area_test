@@ -23,12 +23,15 @@ with open("quartieri_jesi.geojson", "r", encoding="utf-8") as f:
 
 # Estrai nome e centroide di ciascun quartiere
 quartieri = {}
+
+from shapely.geometry import shape
+
 for feature in quartieri_geojson["features"]:
     nome = feature["properties"].get("layer", "Sconosciuto")
-    coords = feature["geometry"]["coordinates"][0]
-    lon = sum([p[0] for p in coords]) / len(coords)
-    lat = sum([p[1] for p in coords]) / len(coords)
-    quartieri[nome] = (lat, lon)
+    geom = shape(feature["geometry"])
+    lon, lat = geom.centroid.xy
+    quartieri[nome] = (lat[0], lon[0])
+
 
 # ---------------------- MAPPA cliccabile ----------------------
 st.markdown("#### 1. Clicca sulla mappa per selezionare origine e destinazione")
