@@ -95,8 +95,21 @@ click_data = st_folium(m, height=500)
 
 # Gestione del clic sul poligono
 if click_data and "last_object_clicked" in click_data:
-    props = click_data["last_object_clicked"].get("properties", {})
-    nome_q = props.get("layer") or props.get("name") or props.get("tooltip")
+    clicked_obj = click_data["last_object_clicked"]
+    props = clicked_obj.get("properties") if isinstance(clicked_obj, dict) else None
+
+    if props:
+        nome_q = props.get("layer") or props.get("name") or props.get("tooltip")
+
+        if nome_q:
+            if selected["origine"] is None:
+                selected["origine"] = nome_q
+            elif selected["destinazione"] is None and nome_q != selected["origine"]:
+                selected["destinazione"] = nome_q
+            elif nome_q == selected["origine"] or nome_q == selected["destinazione"]:
+                st.toast(f"Quartiere {nome_q} già selezionato.")
+            st.session_state.selected = selected
+
 
     if nome_q:
         if selected["origine"] is None:
