@@ -7,10 +7,9 @@ import json
 from datetime import datetime
 from geopy.distance import geodesic
 import folium
-from folium.features import CustomIcon, DivIcon
+from folium.features import DivIcon
 from streamlit_folium import st_folium
 from shapely.geometry import shape, Point
-import base64
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title(":clipboard: Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -75,18 +74,6 @@ def trova_quartiere(lat, lon):
 def fermata_piu_vicina(lat, lon):
     return min(fermate, key=lambda f: geodesic((lat, lon), (f["lat"], f["lon"])).meters)
 
-# ---------------------- Carica e codifica icona custom in Base64 ----------------------
-def get_custom_icon(path, size=(30,30)):
-    if not os.path.exists(path):
-        st.error("File immagine non trovato: " + path)
-        return None
-    with open(path, "rb") as img_file:
-        encoded_img = base64.b64encode(img_file.read()).decode('utf-8')
-    icon_data = f"data:image/png;base64,{encoded_img}"
-    return CustomIcon(icon_image=icon_data, icon_size=size)
-
-custom_icon = get_custom_icon("01-CONEROBUS1-removebg-preview.png", size=(30, 30))
-
 step = st.session_state.step
 
 # ---------------------- Step 1: Luogo di partenza ----------------------
@@ -94,7 +81,7 @@ if step == 1:
     st.header("Step 1: Da dove parti?")
     via_partenza_input = st.text_input("Inserisci via, negozio o piazza di partenza")
     scelte_part = cerca_luoghi(via_partenza_input) if via_partenza_input else []
-
+    
     if scelte_part:
         labels = [f["display_name"] for f in scelte_part]
         scelta = st.selectbox("Seleziona il punto di partenza:", labels, key="sel_part")
@@ -110,7 +97,7 @@ elif step == 2:
     st.header("Step 2: Dove vuoi arrivare?")
     via_arrivo_input = st.text_input("Inserisci via, negozio o piazza di arrivo")
     scelte_arr = cerca_luoghi(via_arrivo_input) if via_arrivo_input else []
-
+    
     if scelte_arr:
         labels = [f["display_name"] for f in scelte_arr]
         scelta = st.selectbox("Seleziona il punto di arrivo:", labels, key="sel_arr")
@@ -121,28 +108,28 @@ elif step == 2:
         if st.button("Avanti"):
             st.session_state.step = 3
 
-# ---------------------- Step 3: Conferma e visualizzazione ----------------------
+# ---------------------- Step 3: Conferma e Visualizzazione ----------------------
 elif step == 3:
     luogo_partenza = st.session_state.luogo_partenza
     luogo_arrivo = st.session_state.luogo_arrivo
     if luogo_partenza and luogo_arrivo:
         lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
         lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
-
+        
         fermata_o = fermata_piu_vicina(lat1, lon1)
         fermata_d = fermata_piu_vicina(lat2, lon2)
-
+        
         quartiere_p = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
         quartiere_a = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
-
+        
         st.markdown(f"<span style='color:green'><b>Partenza:</b> {luogo_partenza['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat1}, {lon1})", language="text")
         st.info(f"Fermata più vicina: {fermata_o['stop_name']} (ID: {fermata_o['stop_id']})")
-
+        
         st.markdown(f"<span style='color:blue'><b>Arrivo:</b> {luogo_arrivo['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
         st.info(f"Fermata più vicina: {fermata_d['stop_name']} (ID: {fermata_d['stop_id']})")
-
+        
         quartiere_colori = {
             "Smia - Zona Industriale": "orange",
             "Coppi - Giardini": "green",
@@ -155,10 +142,10 @@ elif step == 3:
             "Centro Storico": "black",
             "Via Roma": "darkblue"
         }
-
+        
         m = folium.Map(location=[(lat1 + lat2) / 2, (lon1 + lon2) / 2], zoom_start=14)
-
-        # Disegno dei quartieri rilevanti
+        
+        # Disegna i quartieri
         for feat in geojson_quartieri["features"]:
             nome = feat["properties"].get("layer", "Sconosciuto")
             if nome not in [quartiere_p, quartiere_a]:
@@ -174,7 +161,7 @@ elif step == 3:
                     "fillOpacity": 0.6
                 }
             ).add_to(m)
-
+            
             centroide = shape(feat["geometry"]).centroid
             folium.Marker(
                 location=[centroide.y, centroide.x],
@@ -184,23 +171,24 @@ elif step == 3:
                     html=f'<div style="font-size: 10pt; font-weight: bold; color: white; background-color: rgba(0,0,0,0.5); padding: 2px; border-radius: 4px;">{nome}</div>'
                 )
             ).add_to(m)
-
-        # Aggiunta dei marker per le fermate con conversione esplicita delle coordinate
-        folium.Marker(
+        
+        # Marker personalizzati per fermata di partenza e arrivo
+        departure_marker = folium.Marker(
             location=[float(fermata_o["lat"]), float(fermata_o["lon"])],
             tooltip=f"Fermata Partenza: {fermata_o['stop_name']}",
-            icon=custom_icon if custom_icon is not None else None
-        ).add_to(m)
-
-        folium.Marker(
+            icon=folium.Icon(color="green", icon="play", prefix="fa")
+        )
+        arrival_marker = folium.Marker(
             location=[float(fermata_d["lat"]), float(fermata_d["lon"])],
             tooltip=f"Fermata Arrivo: {fermata_d['stop_name']}",
-            icon=custom_icon if custom_icon is not None else None
-        ).add_to(m)
-
+            icon=folium.Icon(color="red", icon="flag", prefix="fa")
+        )
+        departure_marker.add_to(m)
+        arrival_marker.add_to(m)
+        
         st.markdown("### :world_map: Mappa fermate e quartieri")
         st_folium(m, height=600, use_container_width=True)
-
+        
         if st.button("Conferma e vai al sondaggio"):
             ip = socket.gethostbyname(socket.gethostname())
             file_path = "risposte_grezze.csv"
