@@ -1,132 +1,99 @@
 import streamlit as st
 import json
 import folium
-from folium.features import DivIcon
 from streamlit_folium import st_folium
 import pandas as pd
 import os
 import socket
 from datetime import datetime
-from shapely.geometry import shape
+from shapely.geometry import shape, Point
+from geopy.distance import geodesic
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 
 st.markdown("""
-Aiutaci a migliorare il servizio!\n
-Clicca sulla mappa per indicare **da dove parti** e **dove vuoi arrivare**.\n
-Poi rispondi a poche domande per capire meglio come usi l'autobus.\n
-Le risposte sono **anonime** e servono solo per fini statistici.
+Aiutaci a migliorare il servizio!
+
+Inserisci l'indirizzo o il nome del luogo **di partenza** e **di arrivo**.
+Il sistema cercherà la fermata più vicina e il quartiere corrispondente.
 """)
 
 # ---------------------- Load quartieri ----------------------
 with open("quartieri_jesi.geojson", "r", encoding="utf-8") as f:
     quartieri_geojson = json.load(f)
 
-# Colori ufficiali per i quartieri (presi dal progetto principale)
-quartiere_colori = {
-    "Smia - Zona Industriale": "orange",
-    "Coppi - Giardini": "lightgreen",
-    "Prato": "red",
-    "Minonna": "blue",
-    "Paradiso": "yellow",
-    "San Francesco": "pink",
-    "Erbarella - San Pietro Martire": "violet",
-    "San Giuseppe": "brown",
-    "Centro Storico": "gray",
-    "Via Roma": "lightgray"
-}
-
-# Mappa dei quartieri con poligoni e interazione clic
 quartieri = {}
 for feature in quartieri_geojson["features"]:
     nome = feature["properties"].get("layer", "Sconosciuto")
     geom = shape(feature["geometry"])
-    lon, lat = geom.centroid.xy
-    quartieri[nome] = {
-        "centroide": (lat[0], lon[0]),
-        "geometry": feature["geometry"],
-        "properties": feature["properties"]
+    quartieri[nome] = geom
+
+# ---------------------- Load fermate autobus ----------------------
+fermate_df = pd.read_csv("stops.txt")
+fermate = [
+    {
+        "stop_id": row["stop_id"],
+        "stop_name": row["stop_name"],
+        "lat": row["stop_lat"],
+        "lon": row["stop_lon"]
     }
+    for _, row in fermate_df.iterrows()
+]
 
-# Recupero selezione e stato step
-if "selected" not in st.session_state:
-    st.session_state.selected = {"origine": None, "destinazione": None}
-if "step" not in st.session_state:
-    st.session_state.step = 1
+# Funzione per trovare la fermata più vicina
 
-selected = st.session_state.selected
-step = st.session_state.step
+def fermata_piu_vicina(lat, lon):
+    min_dist = float("inf")
+    fermata_vicina = None
+    for fermata in fermate:
+        dist = geodesic((lat, lon), (fermata["lat"], fermata["lon"])).meters
+        if dist < min_dist:
+            min_dist = dist
+            fermata_vicina = fermata
+    return fermata_vicina
 
-# Messaggio guida step-by-step
-if step == 1:
-    st.info("👣 Step 1: clicca su un quartiere per selezionare la tua zona di partenza")
-elif step == 2:
-    st.info(f"✅ Partenza: {selected['origine']}\n👣 Step 2: seleziona la destinazione")
+# Funzione per determinare il quartiere dato un punto
 
-# Costruzione mappa
-m = folium.Map(location=[43.518, 13.243], zoom_start=13)
+def trova_quartiere(lat, lon):
+    punto = Point(lon, lat)
+    for nome, geom in quartieri.items():
+        if geom.contains(punto):
+            return nome
+    return "Fuori Jesi"
 
-for nome, info in quartieri.items():
-    colore = "gray"
-    if selected["origine"] == nome:
-        colore = quartiere_colori.get(nome, "green")
-    elif selected["destinazione"] == nome:
-        colore = quartiere_colori.get(nome, "red")
+# ---------------------- Input indirizzi ----------------------
+partenza = st.text_input("📍 Da dove parti? (es. Via Roma 12)")
+arrivo = st.text_input("🏁 Dove vuoi arrivare? (es. Viale della Vittoria 25)")
 
-    # Disegna poligono colorato
-    gj = folium.GeoJson(
-        data=info["geometry"],
-        name=nome,
-        style_function=lambda feat, colore=colore: {
-            "fillColor": colore,
-            "color": "black",
-            "weight": 1.5,
-            "fillOpacity": 0.5
-        },
-        tooltip=folium.Tooltip(nome),
-        popup=folium.Popup(f"Clicca qui per selezionare {nome}", max_width=300)
-    )
-    gj.add_to(m)
+origine, destinazione = None, None
+fermata_o, fermata_d = None, None
 
+if partenza and arrivo:
+    # Usa OpenStreetMap per geocodifica se necessario
+    from geopy.geocoders import Nominatim
+    geolocator = Nominatim(user_agent="jesi-tpl")
+    try:
+        loc_p = geolocator.geocode(f"{partenza}, Jesi")
+        loc_a = geolocator.geocode(f"{arrivo}, Jesi")
 
+        if loc_p and loc_a:
+            fermata_o = fermata_piu_vicina(loc_p.latitude, loc_p.longitude)
+            fermata_d = fermata_piu_vicina(loc_a.latitude, loc_a.longitude)
+            origine = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
+            destinazione = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
 
-    # Nome del quartiere visibile al centro
-    folium.map.Marker(
-        location=info["centroide"],
-        icon=DivIcon(
-            icon_size=(150, 36),
-            icon_anchor=(0, 0),
-            html=f'<div style="font-size: 10pt; font-weight: bold; color: black; background-color: transparent; padding: 2px; border-radius: 4px;">{nome}</div>'
-        )
-    ).add_to(m)
+            st.success(f"Origine: {origine} (fermata {fermata_o['stop_name']})")
+            st.success(f"Destinazione: {destinazione} (fermata {fermata_d['stop_name']})")
 
-# Visualizza mappa
-click_data = st_folium(m, height=500)
+            st.session_state["origine"] = origine
+            st.session_state["destinazione"] = destinazione
 
-# Gestione clic
-# Gestione clic basata sul tooltip
-if click_data and "last_object_clicked_tooltip" in click_data:
-    nome_q = click_data["last_object_clicked_tooltip"]
-    if nome_q:
-        if step == 1:
-            selected["origine"] = nome_q
-            st.session_state.step = 2
-        elif step == 2 and nome_q != selected["origine"]:
-            selected["destinazione"] = nome_q
-            st.session_state.step = 3
-        st.session_state.selected = selected
-
-# Pulsante reset
-if selected["origine"] or selected["destinazione"]:
-    if st.button("🔄 Reset selezione"):
-        st.session_state.selected = {"origine": None, "destinazione": None}
-        st.session_state.step = 1
+    except Exception as e:
+        st.error("Errore durante la localizzazione. Riprova.")
 
 # ---------------------- FORM ----------------------
-if step == 3:
-    st.success(f"Origine: {selected['origine']} → Destinazione: {selected['destinazione']}")
-
+if st.session_state.get("origine") and st.session_state.get("destinazione"):
     with st.form("sondaggio_form"):
         freq = st.selectbox("Quante volte prendi l'autobus in una settimana?", [
             "Ogni giorno",
@@ -163,8 +130,8 @@ if step == 3:
             nuova = pd.DataFrame.from_records([{
                 "timestamp": datetime.now().isoformat(),
                 "ip": ip,
-                "origine": selected["origine"],
-                "destinazione": selected["destinazione"],
+                "origine": st.session_state["origine"],
+                "destinazione": st.session_state["destinazione"],
                 "frequenza": freq,
                 "fascia_oraria": fascia,
                 "motivo": motivo,
@@ -178,10 +145,10 @@ if step == 3:
                 else:
                     nuova.to_csv(file_path, mode="a", index=False, header=False)
                     st.success("Grazie per aver partecipato al sondaggio!")
-                    st.session_state.selected = {"origine": None, "destinazione": None}
-                    st.session_state.step = 1
+                    st.session_state["origine"] = None
+                    st.session_state["destinazione"] = None
             else:
                 nuova.to_csv(file_path, index=False)
                 st.success("Grazie per aver partecipato al sondaggio!")
-                st.session_state.selected = {"origine": None, "destinazione": None}
-                st.session_state.step = 1
+                st.session_state["origine"] = None
+                st.session_state["destinazione"] = None
