@@ -16,18 +16,8 @@ st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 st.markdown("""
 Aiutaci a migliorare il servizio!
 
-Inserisci **via e numero civico** di partenza e di arrivo. Il sistema troverà automaticamente la fermata più vicina e il quartiere.
+Inserisci **via e numero civico** di partenza e di arrivo. Il sistema troverà automaticamente la fermata più vicina.
 """)
-
-# ---------------------- Load quartieri ----------------------
-with open("quartieri_jesi.geojson", "r", encoding="utf-8") as f:
-    quartieri_geojson = json.load(f)
-
-quartieri = {}
-for feature in quartieri_geojson["features"]:
-    nome = feature["properties"].get("layer", "Sconosciuto")
-    geom = shape(feature["geometry"])
-    quartieri[nome] = geom
 
 # ---------------------- Load fermate autobus ----------------------
 fermate_df = pd.read_csv("stops.txt")
@@ -57,13 +47,6 @@ def trova_fermata_piu_vicina(lat, lon):
     punto = (lat, lon)
     return min(fermate, key=lambda f: geodesic(punto, (f["lat"], f["lon"])).meters)
 
-def trova_quartiere(lat, lon):
-    punto = Point(lon, lat)
-    for nome, geom in quartieri.items():
-        if geom.contains(punto):
-            return nome
-    return "Fuori Jesi"
-
 # ---------------------- Input indirizzi ----------------------
 st.markdown("### ✍️ Inserisci la tua partenza e destinazione con via e numero")
 via_partenza = st.text_input("📍 Da dove parti? (Es. Via Roma 23)")
@@ -79,14 +62,11 @@ if via_partenza and via_arrivo:
         fermata_o = trova_fermata_piu_vicina(*coord_partenza)
         fermata_d = trova_fermata_piu_vicina(*coord_arrivo)
 
-        origine = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
-        destinazione = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
+        st.success(f"Fermata più vicina alla partenza: {fermata_o['stop_name']}")
+        st.success(f"Fermata più vicina all'arrivo: {fermata_d['stop_name']}")
 
-        st.success(f"Origine: {origine} (fermata {fermata_o['stop_name']})")
-        st.success(f"Destinazione: {destinazione} (fermata {fermata_d['stop_name']})")
-
-        st.session_state["origine"] = origine
-        st.session_state["destinazione"] = destinazione
+        st.session_state["origine"] = fermata_o["stop_name"]
+        st.session_state["destinazione"] = fermata_d["stop_name"]
         sessione_ready = True
     else:
         st.error("❌ Non siamo riusciti a trovare le coordinate per una delle vie inserite.")
