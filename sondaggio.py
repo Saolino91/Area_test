@@ -1,54 +1,89 @@
 import streamlit as st
+import requests
 import pandas as pd
-from geopy.geocoders import Nominatim
-from geopy.distance import geodesic
+import os
+import socket
+from datetime import datetime
 
-st.set_page_config(page_title="Trova Fermate più Vicine", layout="wide")
-st.title("📍 Trova le Fermate più Vicine")
+st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
+st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 
-st.markdown("Inserisci un indirizzo reale (via e numero civico) di partenza e arrivo. Il sistema ti darà le fermate più vicine.")
+st.markdown("""
+Aiutaci a migliorare il servizio!
 
-# ------------------ Load fermate autobus ------------------
-fermate_df = pd.read_csv("stops.txt")
-fermate = [
-    {
-        "stop_name": row["stop_name"],
-        "lat": row["stop_lat"],
-        "lon": row["stop_lon"]
+Inizia scrivendo **da dove parti** e **dove vuoi arrivare**: puoi inserire una **via, una piazza, un negozio o un parcheggio**. Il sistema troverà automaticamente le coordinate.
+""")
+
+# ---------------------- Funzione per geocodifica Nominatim ----------------------
+def cerca_luoghi(query):
+    if len(query) < 3:
+        return []
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {
+        "q": f"{query}, Jesi, Italia",
+        "format": "json",
+        "addressdetails": 1,
+        "limit": 5
     }
-    for _, row in fermate_df.iterrows()
-]
+    headers = {"User-Agent": "conerobus-tpl-jesi/1.0"}
+    resp = requests.get(url, params=params, headers=headers)
+    if resp.status_code == 200:
+        return resp.json()
+    return []
 
-# ------------------ Geocodifica ------------------
-geolocator = Nominatim(user_agent="jesi_tpl_survey")
+# ---------------------- Input partenza e arrivo ----------------------
+st.markdown("### 📍 Inserisci i luoghi")
+via_partenza_input = st.text_input("Da dove parti?")
+via_arrivo_input = st.text_input("Dove vuoi arrivare?")
 
-def geocodifica(indirizzo):
-    try:
-        location = geolocator.geocode(f"{indirizzo}, Jesi, Italia")
-        if location:
-            return (location.latitude, location.longitude)
-    except:
-        return None
+scelte_part = cerca_luoghi(via_partenza_input) if via_partenza_input else []
+scelte_arr = cerca_luoghi(via_arrivo_input) if via_arrivo_input else []
 
-    return None
+luogo_partenza = None
+luogo_arrivo = None
 
-def fermata_piu_vicina(lat, lon):
-    punto = (lat, lon)
-    return min(fermate, key=lambda f: geodesic(punto, (f["lat"], f["lon"])).meters)
+if scelte_part:
+    labels = [f"{s['display_name']}" for s in scelte_part]
+    scelta = st.selectbox("Seleziona il luogo di partenza:", labels, key="sel_part")
+    luogo_partenza = next((s for s in scelte_part if s["display_name"] == scelta), None)
 
-# ------------------ Input ------------------
-via_partenza = st.text_input("🛫 Via e numero civico di partenza (es. Via Roma 30)")
-via_arrivo = st.text_input("🛬 Via e numero civico di arrivo (es. Via Paradiso 12)")
+if scelte_arr:
+    labels = [f"{s['display_name']}" for s in scelte_arr]
+    scelta = st.selectbox("Seleziona il luogo di arrivo:", labels, key="sel_arr")
+    luogo_arrivo = next((s for s in scelte_arr if s["display_name"] == scelta), None)
 
-if via_partenza and via_arrivo:
-    coord_partenza = geocodifica(via_partenza)
-    coord_arrivo = geocodifica(via_arrivo)
+# ---------------------- Visualizza coordinate ----------------------
+if luogo_partenza and luogo_arrivo:
+    lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
+    lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
 
-    if coord_partenza and coord_arrivo:
-        fermata_o = fermata_piu_vicina(*coord_partenza)
-        fermata_d = fermata_piu_vicina(*coord_arrivo)
+    st.success(f"Partenza: {luogo_partenza['display_name']}\nCoordinate: ({lat1}, {lon1})")
+    st.success(f"Arrivo: {luogo_arrivo['display_name']}\nCoordinate: ({lat2}, {lon2})")
 
-        st.success(f"📍 Fermata più vicina alla partenza: **{fermata_o['stop_name']}**")
-        st.success(f"📍 Fermata più vicina all’arrivo: **{fermata_d['stop_name']}**")
-    else:
-        st.error("❌ Non siamo riusciti a trovare uno degli indirizzi. Assicurati che sia scritto correttamente.")
+    # ---------------------- Salvataggio nel CSV ----------------------
+    with st.form("salvataggio_dati"):
+        conferma = st.form_submit_button("✅ Conferma e salva")
+        if conferma:
+            ip = socket.gethostbyname(socket.gethostname())
+            file_path = "risposte_grezze.csv"
+
+            nuova = pd.DataFrame.from_records([{
+                "timestamp": datetime.now().isoformat(),
+                "ip": ip,
+                "partenza": luogo_partenza['display_name'],
+                "lat_p": lat1,
+                "lon_p": lon1,
+                "arrivo": luogo_arrivo['display_name'],
+                "lat_a": lat2,
+                "lon_a": lon2
+            }])
+
+            if os.path.exists(file_path):
+                nuova.to_csv(file_path, mode="a", index=False, header=False)
+            else:
+                nuova.to_csv(file_path, index=False)
+
+            st.success("📍 Dati salvati con successo! Ora puoi continuare con il sondaggio.")
+
+else:
+    st.info("Scrivi almeno 3 lettere per cercare la via o il luogo.")
