@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import pandas as pd
-import os
 import socket
 import json
 from datetime import datetime
@@ -10,13 +9,13 @@ import folium
 from folium.features import DivIcon
 from streamlit_folium import st_folium
 from shapely.geometry import shape, Point
-import os
+from pathlib import Path  # Utilizziamo pathlib per la gestione dei file
 
-
+# Configurazione della pagina
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title(":clipboard: Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 
-# ---------------------- Stato ----------------------
+# ---------------------- Stato della Sessione ----------------------
 if "step" not in st.session_state:
     st.session_state.step = 1
 if "luogo_partenza" not in st.session_state:
@@ -24,7 +23,7 @@ if "luogo_partenza" not in st.session_state:
 if "luogo_arrivo" not in st.session_state:
     st.session_state.luogo_arrivo = None
 
-# ---------------------- Geocodifica ----------------------
+# ---------------------- Funzione di Geocodifica ----------------------
 def cerca_luoghi(query):
     if len(query) < 3:
         return []
@@ -76,6 +75,7 @@ def trova_quartiere(lat, lon):
 def fermata_piu_vicina(lat, lon):
     return min(fermate, key=lambda f: geodesic((lat, lon), (f["lat"], f["lon"])).meters)
 
+# Recupero dello step corrente
 step = st.session_state.step
 
 # ---------------------- Step 1: Luogo di partenza ----------------------
@@ -112,15 +112,14 @@ elif step == 2:
 
 # ---------------------- Step 3: Conferma e Visualizzazione ----------------------
 elif step == 3:
-    # Recupera i dati da st.session_state con un controllo di fallback
+    # Recupero dei dati salvati nella sessione
     luogo_partenza = st.session_state.get("luogo_partenza")
     luogo_arrivo = st.session_state.get("luogo_arrivo")
     
-    # Controlla se i dati necessari sono stati definiti
     if not luogo_partenza or not luogo_arrivo:
         st.error("Errore: Devi completare gli step precedenti per scegliere un punto di partenza e uno di arrivo.")
     else:
-        # Prosegui solo se i dati sono disponibili
+        # Conversione delle coordinate in float
         lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
         lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
         
@@ -130,7 +129,7 @@ elif step == 3:
         quartiere_p = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
         quartiere_a = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
         
-        # Mostra i dettagli di partenza e arrivo
+        # Visualizzazione dei dettagli
         st.markdown(f"<span style='color:green'><b>Partenza:</b> {luogo_partenza['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat1}, {lon1})", language="text")
         st.info(f"Fermata più vicina: {fermata_o['stop_name']} (ID: {fermata_o['stop_id']})")
@@ -139,9 +138,7 @@ elif step == 3:
         st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
         st.info(f"Fermata più vicina: {fermata_d['stop_name']} (ID: {fermata_d['stop_id']})")
         
-        # Continua con la mappa e il salvataggio
-        
-        
+        # Visualizzazione della mappa con i quartieri e le fermate
         quartiere_colori = {
             "Smia - Zona Industriale": "orange",
             "Coppi - Giardini": "green",
@@ -157,7 +154,6 @@ elif step == 3:
         
         m = folium.Map(location=[(lat1 + lat2) / 2, (lon1 + lon2) / 2], zoom_start=14)
         
-        # Disegna i quartieri rilevanti
         for feat in geojson_quartieri["features"]:
             nome = feat["properties"].get("layer", "Sconosciuto")
             if nome not in [quartiere_p, quartiere_a]:
@@ -184,61 +180,63 @@ elif step == 3:
                 )
             ).add_to(m)
         
-        # Marker personalizzati per partenza e arrivo (icone distinte)
-        departure_marker = folium.Marker(
-            location=[float(fermata_o["lat"]), float(fermata_o["lon"])],
+        # Marker personalizzati per partenza e arrivo
+        folium.Marker(
+            location=[fermata_o["lat"], fermata_o["lon"]],
             tooltip=f"Fermata Partenza: {fermata_o['stop_name']}",
             icon=folium.Icon(color="green", icon="play", prefix="fa")
-        )
-        arrival_marker = folium.Marker(
-            location=[float(fermata_d["lat"]), float(fermata_d["lon"])],
+        ).add_to(m)
+        folium.Marker(
+            location=[fermata_d["lat"], fermata_d["lon"]],
             tooltip=f"Fermata Arrivo: {fermata_d['stop_name']}",
             icon=folium.Icon(color="red", icon="flag", prefix="fa")
-        )
-        departure_marker.add_to(m)
-        arrival_marker.add_to(m)
+        ).add_to(m)
         
         st.markdown("### :world_map: Mappa fermate e quartieri")
         st_folium(m, height=600, use_container_width=True)
         
         # ---------------------- Salvataggio Risposta in CSV ----------------------
-if st.button("Conferma e vai al sondaggio"):
-    ip = socket.gethostbyname(socket.gethostname())
-    file_path = "risposte_grezze.csv"
+        if st.button("Conferma e vai al sondaggio"):
+            ip = socket.gethostbyname(socket.gethostname())
+            # Uso pathlib per gestire il file in maniera più robusta
+            file_path = Path("risposte_grezze.csv")
 
-    # Verifica se il file esiste
-    if not os.path.exists(file_path):
-        st.warning(f"Il file {file_path} non esiste. Verrà creato.")
-    elif not os.access(file_path, os.W_OK):
-        st.error(f"Il file {file_path} non è scrivibile. Controlla i permessi!")
-    else:
-        st.write("Il file è scrivibile, procedo con il salvataggio.")
+            # Controllo se il file esiste e se è scrivibile
+            if not file_path.exists():
+                st.warning(f"Il file {file_path} non esiste. Verrà creato.")
+            elif not os.access(file_path, os.W_OK):
+                st.error(f"Il file {file_path} non è scrivibile. Controlla i permessi!")
+                st.stop()
+            else:
+                st.write("Il file è scrivibile, procedo con il salvataggio.")
 
-    # Prosegui con il salvataggio
-    record = {
-        "timestamp": datetime.now().isoformat(),
-        "codice": ip,
-        "nome_luogo_partenza": luogo_partenza['display_name'],
-        "coord_partenza": f"({lat1}, {lon1})",
-        "quartiere_partenza": quartiere_p if quartiere_p is not None else "N/D",
-        "id_fermata_partenza": fermata_o['stop_id'],
-        "fermata_partenza": fermata_o['stop_name'],
-        "nome_luogo_arrivo": luogo_arrivo['display_name'],
-        "coord_arrivo": f"({lat2}, {lon2})",
-        "quartiere_arrivo": quartiere_a if quartiere_a is not None else "N/D",
-        "id_fermata_arrivo": fermata_d['stop_id'],
-        "fermata_arrivo": fermata_d['stop_name']
-    }
-    nuova = pd.DataFrame.from_records([record])
+            # Preparazione del record da salvare
+            record = {
+                "timestamp": datetime.now().isoformat(),
+                "codice": ip,
+                "nome_luogo_partenza": luogo_partenza['display_name'],
+                "coord_partenza": f"({lat1}, {lon1})",
+                "quartiere_partenza": quartiere_p if quartiere_p is not None else "N/D",
+                "id_fermata_partenza": fermata_o['stop_id'],
+                "fermata_partenza": fermata_o['stop_name'],
+                "nome_luogo_arrivo": luogo_arrivo['display_name'],
+                "coord_arrivo": f"({lat2}, {lon2})",
+                "quartiere_arrivo": quartiere_a if quartiere_a is not None else "N/D",
+                "id_fermata_arrivo": fermata_d['stop_id'],
+                "fermata_arrivo": fermata_d['stop_name']
+            }
+            nuova = pd.DataFrame.from_records([record])
 
-    # Se il file esiste, appende senza header, altrimenti lo crea con header
-    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-        nuova.to_csv(file_path, mode="a", index=False, header=False)
-    else:
-        nuova.to_csv(file_path, index=False)
-
-    st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
-    st.session_state.step = 4
+            # Salvataggio: se il file esiste e ha contenuto, appendo senza header, altrimenti creo un nuovo file con header
+            try:
+                if file_path.exists() and file_path.stat().st_size > 0:
+                    nuova.to_csv(file_path, mode="a", index=False, header=False)
+                else:
+                    nuova.to_csv(file_path, index=False)
+                st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
+                st.session_state.step = 4
+            except Exception as e:
+                st.error("Errore nel salvataggio dei dati: " + str(e))
 
 # ---------------------- Step 4: Prossimo modulo ----------------------
 elif step == 4:
