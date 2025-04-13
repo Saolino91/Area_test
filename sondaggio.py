@@ -34,21 +34,79 @@ for feature in quartieri_geojson["features"]:
 
 
 # ---------------------- MAPPA cliccabile ----------------------
+from shapely.geometry import shape
+
 st.markdown("#### 1. Clicca sulla mappa per selezionare origine e destinazione")
 
-m = folium.Map(location=[43.518, 13.243], zoom_start=13)
+# Costruzione struttura quartieri
+quartieri = {}
+for feature in quartieri_geojson["features"]:
+    nome = feature["properties"].get("layer", "Sconosciuto")
+    geom = shape(feature["geometry"])
+    lon, lat = geom.centroid.xy
+    quartieri[nome] = {
+        "centroide": (lat[0], lon[0]),
+        "geometry": feature["geometry"],
+        "properties": feature["properties"]
+    }
+
+# Recupero selezione da sessione
 selected = st.session_state.get("selected", {"origine": None, "destinazione": None})
 
-for nome, (lat, lon) in quartieri.items():
-    color = "green" if selected["origine"] == nome else "red" if selected["destinazione"] == nome else "blue"
+# Costruzione mappa
+m = folium.Map(location=[43.518, 13.243], zoom_start=13)
+
+# Aggiunta poligoni interattivi e marker
+for nome, info in quartieri.items():
+    colore = "gray"
+    if selected["origine"] == nome:
+        colore = "green"
+    elif selected["destinazione"] == nome:
+        colore = "red"
+
+    # Poligono cliccabile
+    geojson = folium.GeoJson(
+        info["geometry"],
+        name=nome,
+        tooltip=folium.Tooltip(f"{nome} - clicca per selezionare"),
+        style_function=lambda feat, colore=colore: {
+            "fillColor": colore,
+            "color": "black",
+            "weight": 1.5,
+            "fillOpacity": 0.4
+        }
+    )
+    geojson.add_to(m)
+
+    # Marker al centroide per supporto visivo
     folium.Marker(
-        [lat, lon],
+        location=info["centroide"],
         tooltip=f"{nome}",
         popup=f"Clicca per selezionare: {nome}",
-        icon=folium.Icon(color=color)
+        icon=folium.Icon(
+            color="green" if selected["origine"] == nome else
+                  "red" if selected["destinazione"] == nome else
+                  "blue"
+        )
     ).add_to(m)
 
-clicked = st_folium(m, height=500)
+# Visualizza mappa
+click_data = st_folium(m, height=500)
+
+# Gestione del clic sul poligono
+if click_data and "last_object_clicked" in click_data:
+    props = click_data["last_object_clicked"].get("properties", {})
+    nome_q = props.get("layer") or props.get("name") or props.get("tooltip")
+
+    if nome_q:
+        if selected["origine"] is None:
+            selected["origine"] = nome_q
+        elif selected["destinazione"] is None and nome_q != selected["origine"]:
+            selected["destinazione"] = nome_q
+        elif nome_q == selected["origine"] or nome_q == selected["destinazione"]:
+            st.toast(f"Quartiere {nome_q} già selezionato.")
+        st.session_state.selected = selected
+
 
 # Match click con quartiere più vicino
 if clicked and clicked.get("last_object_clicked_tooltip"):
