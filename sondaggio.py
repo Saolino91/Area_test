@@ -47,7 +47,7 @@ vie = sorted(set(vie_raw))
 # ---------------------- Funzioni ----------------------
 def fermata_piu_vicina(via):
     for f in fermate:
-        if via.lower() in f["stop_name"].lower():
+        if isinstance(f["stop_name"], str) and via.lower() in f["stop_name"].lower():
             return f
     return None
 
