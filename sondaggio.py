@@ -45,6 +45,7 @@ if step == 1:
         labels = [f["display_name"] for f in scelte_part]
         scelta = st.selectbox("Seleziona il punto di partenza:", labels, key="sel_part")
         st.session_state.luogo_partenza = next((f for f in scelte_part if f["display_name"] == scelta), None)
+        st.success(f"Hai selezionato: {scelta}")
         if st.button("Avanti"):
             st.session_state.step = 2
 
@@ -58,6 +59,7 @@ elif step == 2:
         labels = [f["display_name"] for f in scelte_arr]
         scelta = st.selectbox("Seleziona il punto di arrivo:", labels, key="sel_arr")
         st.session_state.luogo_arrivo = next((f for f in scelte_arr if f["display_name"] == scelta), None)
+        st.success(f"Hai selezionato: {scelta}")
         if st.button("Avanti"):
             st.session_state.step = 3
 
@@ -69,8 +71,10 @@ elif step == 3:
         lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
         lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
 
-        st.success(f"Partenza: {luogo_partenza['display_name']}\nCoordinate: ({lat1}, {lon1})")
-        st.success(f"Arrivo: {luogo_arrivo['display_name']}\nCoordinate: ({lat2}, {lon2})")
+        st.markdown(f"<span style='color:green'><b>Partenza:</b> {luogo_partenza['display_name']}</span>", unsafe_allow_html=True)
+        st.code(f"Coordinate: ({lat1}, {lon1})", language="text")
+        st.markdown(f"<span style='color:blue'><b>Arrivo:</b> {luogo_arrivo['display_name']}</span>", unsafe_allow_html=True)
+        st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
 
         if st.button("Conferma e vai al sondaggio"):
             ip = socket.gethostbyname(socket.gethostname())
