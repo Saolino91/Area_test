@@ -8,7 +8,6 @@ import socket
 from datetime import datetime
 from shapely.geometry import shape, Point
 from geopy.distance import geodesic
-import requests
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -16,7 +15,7 @@ st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 st.markdown("""
 Aiutaci a migliorare il servizio!
 
-Inserisci l'indirizzo o il nome del luogo **di partenza** e **di arrivo**.
+Seleziona la **via di partenza** e la **via di arrivo** dal menu a discesa.
 Il sistema cercherà la fermata più vicina e il quartiere corrispondente.
 """)
 
@@ -42,7 +41,10 @@ fermate = [
     for _, row in fermate_df.iterrows()
 ]
 
-# Funzione per trovare la fermata più vicina
+# ---------------------- Load vie Jesi ----------------------
+vie = sorted(set(fermate_df["stop_name"].str.extract(r"via (.*)", expand=False).dropna().str.title().unique()))
+
+# ---------------------- Funzioni ----------------------
 def fermata_piu_vicina(lat, lon):
     min_dist = float("inf")
     fermata_vicina = None
@@ -53,7 +55,6 @@ def fermata_piu_vicina(lat, lon):
             fermata_vicina = fermata
     return fermata_vicina
 
-# Funzione per determinare il quartiere dato un punto
 def trova_quartiere(lat, lon):
     punto = Point(lon, lat)
     for nome, geom in quartieri.items():
@@ -61,45 +62,33 @@ def trova_quartiere(lat, lon):
             return nome
     return "Fuori Jesi"
 
-# ---------------------- Input con suggerimenti ----------------------
-st.markdown("#### Inserisci i tuoi luoghi di partenza e arrivo")
+# ---------------------- Input guidato ----------------------
+st.markdown("#### Seleziona le vie")
+via_partenza = st.selectbox("📍 Da dove parti?", vie)
+via_arrivo = st.selectbox("🏁 Dove vuoi arrivare?", vie)
 
-partenza = st.text_input("📍 Da dove parti?")
-arrivo = st.text_input("🏁 Dove vuoi arrivare?")
-
+fermata_o = fermata_d = None
+origine = destinazione = None
 sessione_ready = False
-origine, destinazione = None, None
-fermata_o, fermata_d = None, None
 
-if partenza and arrivo:
-    try:
-        def get_coords(indirizzo):
-            url = f"https://nominatim.openstreetmap.org/search?q={indirizzo},Jesi&format=json&limit=1"
-            res = requests.get(url, headers={"User-Agent": "streamlit-tpl-app"})
-            if res.status_code == 200 and res.json():
-                risultato = res.json()[0]
-                return float(risultato["lat"]), float(risultato["lon"])
-            return None, None
+if via_partenza and via_arrivo:
+    fermate_p = [f for f in fermate if via_partenza.lower() in f["stop_name"].lower()]
+    fermate_a = [f for f in fermate if via_arrivo.lower() in f["stop_name"].lower()]
+    
+    if fermate_p and fermate_a:
+        fermata_o = fermate_p[0]  # prendi la prima fermata trovata su quella via
+        fermata_d = fermate_a[0]
+        origine = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
+        destinazione = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
 
-        lat_p, lon_p = get_coords(partenza)
-        lat_a, lon_a = get_coords(arrivo)
+        st.success(f"Origine: {origine} (fermata {fermata_o['stop_name']})")
+        st.success(f"Destinazione: {destinazione} (fermata {fermata_d['stop_name']})")
 
-        if lat_p and lat_a:
-            fermata_o = fermata_piu_vicina(lat_p, lon_p)
-            fermata_d = fermata_piu_vicina(lat_a, lon_a)
-            origine = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
-            destinazione = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
-
-            st.success(f"Origine: {origine} (fermata {fermata_o['stop_name']})")
-            st.success(f"Destinazione: {destinazione} (fermata {fermata_d['stop_name']})")
-
-            st.session_state["origine"] = origine
-            st.session_state["destinazione"] = destinazione
-            sessione_ready = True
-        else:
-            st.warning("Non sono riuscito a trovare gli indirizzi inseriti. Prova a specificare meglio la via.")
-    except Exception as e:
-        st.error("Errore durante la localizzazione. Riprova.")
+        st.session_state["origine"] = origine
+        st.session_state["destinazione"] = destinazione
+        sessione_ready = True
+    else:
+        st.warning("Non sono riuscito a trovare una fermata per le vie selezionate.")
 
 # ---------------------- FORM ----------------------
 if sessione_ready:
