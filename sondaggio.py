@@ -190,32 +190,50 @@ elif step == 3:
         st_folium(m, height=600, use_container_width=True)
         
         # ---------------------- Salvataggio Risposta in CSV ----------------------
-        if st.button("Conferma e vai al sondaggio"):
-            ip = socket.gethostbyname(socket.gethostname())
-            file_path = "risposte_grezze.csv"
-            record = {
-                "timestamp": datetime.now().isoformat(),
-                "codice": ip,
-                "nome_luogo_partenza": luogo_partenza['display_name'],
-                "coord_partenza": f"({lat1}, {lon1})",
-                "quartiere_partenza": quartiere_p if quartiere_p is not None else "N/D",
-                "id_fermata_partenza": fermata_o['stop_id'],
-                "fermata_partenza": fermata_o['stop_name'],
-                "nome_luogo_arrivo": luogo_arrivo['display_name'],
-                "coord_arrivo": f"({lat2}, {lon2})",
-                "quartiere_arrivo": quartiere_a if quartiere_a is not None else "N/D",
-                "id_fermata_arrivo": fermata_d['stop_id'],
-                "fermata_arrivo": fermata_d['stop_name']
-            }
-            nuova = pd.DataFrame.from_records([record])
-            
-            # Se il file esiste, appende senza header, altrimenti lo crea con header
-            if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-                nuova.to_csv(file_path, mode="a", index=False, header=False)
-            else:
-                nuova.to_csv(file_path, index=False)
-            st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
-            st.session_state.step = 4
+       if st.button("Conferma e vai al sondaggio"):
+    try:
+        st.write("👉 Entrato nel blocco di salvataggio CSV.")
+        ip = socket.gethostbyname(socket.gethostname())
+        file_path = os.path.abspath("risposte_grezze.csv")
+        st.write(f"📂 File path assoluto: {file_path}")
+
+        record = {
+            "timestamp": datetime.now().isoformat(),
+            "codice": ip,
+            "nome_luogo_partenza": luogo_partenza['display_name'],
+            "coord_partenza": f"({lat1}, {lon1})",
+            "quartiere_partenza": quartiere_p if quartiere_p is not None else "N/D",
+            "id_fermata_partenza": fermata_o['stop_id'],
+            "fermata_partenza": fermata_o['stop_name'],
+            "nome_luogo_arrivo": luogo_arrivo['display_name'],
+            "coord_arrivo": f"({lat2}, {lon2})",
+            "quartiere_arrivo": quartiere_a if quartiere_a is not None else "N/D",
+            "id_fermata_arrivo": fermata_d['stop_id'],
+            "fermata_arrivo": fermata_d['stop_name']
+        }
+
+        nuova = pd.DataFrame.from_records([record])
+        st.write("📝 Record pronto per essere salvato:")
+        st.json(record)
+
+        if os.path.exists(file_path):
+            st.write("🔍 Il file CSV esiste già.")
+            st.write(f"Dimensione file CSV esistente: {os.path.getsize(file_path)} bytes")
+        else:
+            st.write("⚠️ Il file CSV NON esiste e verrà creato ora.")
+
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            nuova.to_csv(file_path, mode="a", index=False, header=False)
+            st.write("✅ Record aggiunto al file CSV esistente.")
+        else:
+            nuova.to_csv(file_path, index=False)
+            st.write("✅ File CSV creato e record aggiunto con intestazione.")
+
+        st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
+        st.session_state.step = 4
+
+    except Exception as e:
+        st.error(f"🚨 ERRORE durante il salvataggio CSV: {e}")
 
 # ---------------------- Step 4: Prossimo modulo ----------------------
 elif step == 4:
