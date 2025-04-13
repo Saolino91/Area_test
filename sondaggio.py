@@ -6,15 +6,17 @@ import socket
 from datetime import datetime
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
-st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
+st.title(":clipboard: Sondaggio sul Trasporto Pubblico Urbano di Jesi")
 
-st.markdown("""
-Aiutaci a migliorare il servizio!
+# ---------------------- Stato ----------------------
+if "step" not in st.session_state:
+    st.session_state.step = 1
+if "luogo_partenza" not in st.session_state:
+    st.session_state.luogo_partenza = None
+if "luogo_arrivo" not in st.session_state:
+    st.session_state.luogo_arrivo = None
 
-Inizia scrivendo **da dove parti** e **dove vuoi arrivare**: puoi inserire una **via, una piazza, un negozio o un parcheggio**. Il sistema troverà automaticamente le coordinate.
-""")
-
-# ---------------------- Funzione per geocodifica Nominatim ----------------------
+# ---------------------- Geocodifica ----------------------
 def cerca_luoghi(query):
     if len(query) < 3:
         return []
@@ -31,42 +33,48 @@ def cerca_luoghi(query):
         return resp.json()
     return []
 
-# ---------------------- Input partenza e arrivo ----------------------
-st.markdown("### 📍 Inserisci i luoghi")
-via_partenza_input = st.text_input("Da dove parti?")
-via_arrivo_input = st.text_input("Dove vuoi arrivare?")
+step = st.session_state.step
 
-scelte_part = cerca_luoghi(via_partenza_input) if via_partenza_input else []
-scelte_arr = cerca_luoghi(via_arrivo_input) if via_arrivo_input else []
+# ---------------------- Step 1: Luogo di partenza ----------------------
+if step == 1:
+    st.header("Step 1: Da dove parti?")
+    via_partenza_input = st.text_input("Inserisci via, negozio o piazza di partenza")
+    scelte_part = cerca_luoghi(via_partenza_input) if via_partenza_input else []
 
-luogo_partenza = None
-luogo_arrivo = None
+    if scelte_part:
+        labels = [f["display_name"] for f in scelte_part]
+        scelta = st.selectbox("Seleziona il punto di partenza:", labels, key="sel_part")
+        st.session_state.luogo_partenza = next((f for f in scelte_part if f["display_name"] == scelta), None)
+        if st.button("Avanti"):
+            st.session_state.step = 2
 
-if scelte_part:
-    labels = [f"{s['display_name']}" for s in scelte_part]
-    scelta = st.selectbox("Seleziona il luogo di partenza:", labels, key="sel_part")
-    luogo_partenza = next((s for s in scelte_part if s["display_name"] == scelta), None)
+# ---------------------- Step 2: Luogo di arrivo ----------------------
+elif step == 2:
+    st.header("Step 2: Dove vuoi arrivare?")
+    via_arrivo_input = st.text_input("Inserisci via, negozio o piazza di arrivo")
+    scelte_arr = cerca_luoghi(via_arrivo_input) if via_arrivo_input else []
 
-if scelte_arr:
-    labels = [f"{s['display_name']}" for s in scelte_arr]
-    scelta = st.selectbox("Seleziona il luogo di arrivo:", labels, key="sel_arr")
-    luogo_arrivo = next((s for s in scelte_arr if s["display_name"] == scelta), None)
+    if scelte_arr:
+        labels = [f["display_name"] for f in scelte_arr]
+        scelta = st.selectbox("Seleziona il punto di arrivo:", labels, key="sel_arr")
+        st.session_state.luogo_arrivo = next((f for f in scelte_arr if f["display_name"] == scelta), None)
+        if st.button("Avanti"):
+            st.session_state.step = 3
 
-# ---------------------- Visualizza coordinate ----------------------
-if luogo_partenza and luogo_arrivo:
-    lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
-    lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
+# ---------------------- Step 3: Conferma e salvataggio ----------------------
+elif step == 3:
+    luogo_partenza = st.session_state.luogo_partenza
+    luogo_arrivo = st.session_state.luogo_arrivo
+    if luogo_partenza and luogo_arrivo:
+        lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
+        lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
 
-    st.success(f"Partenza: {luogo_partenza['display_name']}\nCoordinate: ({lat1}, {lon1})")
-    st.success(f"Arrivo: {luogo_arrivo['display_name']}\nCoordinate: ({lat2}, {lon2})")
+        st.success(f"Partenza: {luogo_partenza['display_name']}\nCoordinate: ({lat1}, {lon1})")
+        st.success(f"Arrivo: {luogo_arrivo['display_name']}\nCoordinate: ({lat2}, {lon2})")
 
-    # ---------------------- Salvataggio nel CSV ----------------------
-    with st.form("salvataggio_dati"):
-        conferma = st.form_submit_button("✅ Conferma e salva")
-        if conferma:
+        if st.button("Conferma e vai al sondaggio"):
             ip = socket.gethostbyname(socket.gethostname())
             file_path = "risposte_grezze.csv"
-
             nuova = pd.DataFrame.from_records([{
                 "timestamp": datetime.now().isoformat(),
                 "ip": ip,
@@ -77,13 +85,14 @@ if luogo_partenza and luogo_arrivo:
                 "lat_a": lat2,
                 "lon_a": lon2
             }])
-
             if os.path.exists(file_path):
                 nuova.to_csv(file_path, mode="a", index=False, header=False)
             else:
                 nuova.to_csv(file_path, index=False)
+            st.success(":white_check_mark: Coordinate salvate correttamente!")
+            st.session_state.step = 4
 
-            st.success("📍 Dati salvati con successo! Ora puoi continuare con il sondaggio.")
-
-else:
-    st.info("Scrivi almeno 3 lettere per cercare la via o il luogo.")
+# ---------------------- Step 4: Prossimo modulo ----------------------
+elif step == 4:
+    st.header("Hai completato la prima parte del sondaggio!")
+    st.markdown("Prosegui con la sezione successiva... (in fase di sviluppo)")
