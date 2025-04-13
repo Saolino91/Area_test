@@ -94,12 +94,12 @@ for nome, info in quartieri.items():
         icon=DivIcon(
             icon_size=(150, 36),
             icon_anchor=(0, 0),
-            html=f'<div style="font-size: 10pt; font-weight: bold; color: black; background-color: rgba(255,255,255,0.6); padding: 2px; border-radius: 4px;">{nome}</div>'
+            html=f'<div style="font-size: 10pt; font-weight: bold; color: black; background-color: transparent; padding: 2px; border-radius: 4px;">{nome}</div>'
         )
     ).add_to(m)
 
 # Visualizza mappa
-click_data = st_folium(m, height=500)
+click_data = st_folium(m, height=500, returned_objects=True)
 
 # Gestione clic
 if click_data and "last_object_clicked" in click_data:
