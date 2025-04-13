@@ -18,7 +18,7 @@ Le risposte sono **anonime** e servono solo per fini statistici.
 """)
 
 # ---------------------- Load quartieri ----------------------
-with open("data/quartieri_jesi.geojson", "r", encoding="utf-8") as f:
+with open("quartieri_jesi.geojson", "r", encoding="utf-8") as f:
     quartieri_geojson = json.load(f)
 
 # Estrai nome e centroide di ciascun quartiere
