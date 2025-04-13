@@ -42,10 +42,12 @@ if step == 1:
     scelte_part = cerca_luoghi(via_partenza_input) if via_partenza_input else []
 
     if scelte_part:
-        labels = [f["display_name"] for f in scelte_part]
+        labels = [f"\033[92m{f['display_name']}\033[0m" if st.session_state.get("luogo_partenza") and f['display_name'] == st.session_state['luogo_partenza']['display_name'] else f["display_name"] for f in scelte_part]
         scelta = st.selectbox("Seleziona il punto di partenza:", labels, key="sel_part")
-        st.session_state.luogo_partenza = next((f for f in scelte_part if f["display_name"] == scelta), None)
-        st.success(f"Hai selezionato: {scelta}")
+        scelta_originale = next((f for f in scelte_part if f["display_name"] in scelta), None)
+        st.session_state.luogo_partenza = scelta_originale
+        if scelta_originale:
+            st.success(f"Hai selezionato: {scelta_originale['display_name']}")
         if st.button("Avanti"):
             st.session_state.step = 2
 
@@ -56,10 +58,12 @@ elif step == 2:
     scelte_arr = cerca_luoghi(via_arrivo_input) if via_arrivo_input else []
 
     if scelte_arr:
-        labels = [f["display_name"] for f in scelte_arr]
+        labels = [f"\033[94m{f['display_name']}\033[0m" if st.session_state.get("luogo_arrivo") and f['display_name'] == st.session_state['luogo_arrivo']['display_name'] else f["display_name"] for f in scelte_arr]
         scelta = st.selectbox("Seleziona il punto di arrivo:", labels, key="sel_arr")
-        st.session_state.luogo_arrivo = next((f for f in scelte_arr if f["display_name"] == scelta), None)
-        st.success(f"Hai selezionato: {scelta}")
+        scelta_originale = next((f for f in scelte_arr if f["display_name"] in scelta), None)
+        st.session_state.luogo_arrivo = scelta_originale
+        if scelta_originale:
+            st.success(f"Hai selezionato: {scelta_originale['display_name']}")
         if st.button("Avanti"):
             st.session_state.step = 3
 
