@@ -8,6 +8,7 @@ import socket
 from datetime import datetime
 from shapely.geometry import shape, Point
 from geopy.distance import geodesic
+import requests
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title("\U0001F4CB Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -42,7 +43,6 @@ fermate = [
 ]
 
 # Funzione per trovare la fermata più vicina
-
 def fermata_piu_vicina(lat, lon):
     min_dist = float("inf")
     fermata_vicina = None
@@ -54,7 +54,6 @@ def fermata_piu_vicina(lat, lon):
     return fermata_vicina
 
 # Funzione per determinare il quartiere dato un punto
-
 def trova_quartiere(lat, lon):
     punto = Point(lon, lat)
     for nome, geom in quartieri.items():
@@ -62,24 +61,32 @@ def trova_quartiere(lat, lon):
             return nome
     return "Fuori Jesi"
 
-# ---------------------- Input indirizzi ----------------------
-partenza = st.text_input("📍 Da dove parti? (es. Via Roma 12)")
-arrivo = st.text_input("🏁 Dove vuoi arrivare? (es. Viale della Vittoria 25)")
+# ---------------------- Input con suggerimenti ----------------------
+st.markdown("#### Inserisci i tuoi luoghi di partenza e arrivo")
 
+partenza = st.text_input("📍 Da dove parti?")
+arrivo = st.text_input("🏁 Dove vuoi arrivare?")
+
+sessione_ready = False
 origine, destinazione = None, None
 fermata_o, fermata_d = None, None
 
 if partenza and arrivo:
-    # Usa OpenStreetMap per geocodifica se necessario
-    from geopy.geocoders import Nominatim
-    geolocator = Nominatim(user_agent="jesi-tpl")
     try:
-        loc_p = geolocator.geocode(f"{partenza}, Jesi")
-        loc_a = geolocator.geocode(f"{arrivo}, Jesi")
+        def get_coords(indirizzo):
+            url = f"https://nominatim.openstreetmap.org/search?q={indirizzo},Jesi&format=json&limit=1"
+            res = requests.get(url, headers={"User-Agent": "streamlit-tpl-app"})
+            if res.status_code == 200 and res.json():
+                risultato = res.json()[0]
+                return float(risultato["lat"]), float(risultato["lon"])
+            return None, None
 
-        if loc_p and loc_a:
-            fermata_o = fermata_piu_vicina(loc_p.latitude, loc_p.longitude)
-            fermata_d = fermata_piu_vicina(loc_a.latitude, loc_a.longitude)
+        lat_p, lon_p = get_coords(partenza)
+        lat_a, lon_a = get_coords(arrivo)
+
+        if lat_p and lat_a:
+            fermata_o = fermata_piu_vicina(lat_p, lon_p)
+            fermata_d = fermata_piu_vicina(lat_a, lon_a)
             origine = trova_quartiere(fermata_o["lat"], fermata_o["lon"])
             destinazione = trova_quartiere(fermata_d["lat"], fermata_d["lon"])
 
@@ -88,12 +95,14 @@ if partenza and arrivo:
 
             st.session_state["origine"] = origine
             st.session_state["destinazione"] = destinazione
-
+            sessione_ready = True
+        else:
+            st.warning("Non sono riuscito a trovare gli indirizzi inseriti. Prova a specificare meglio la via.")
     except Exception as e:
         st.error("Errore durante la localizzazione. Riprova.")
 
 # ---------------------- FORM ----------------------
-if st.session_state.get("origine") and st.session_state.get("destinazione"):
+if sessione_ready:
     with st.form("sondaggio_form"):
         freq = st.selectbox("Quante volte prendi l'autobus in una settimana?", [
             "Ogni giorno",
