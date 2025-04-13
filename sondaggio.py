@@ -61,12 +61,14 @@ for feat in geojson_quartieri["features"]:
     geom = shape(feat["geometry"])
     quartieri[nome] = geom
 
+
 def trova_quartiere(lat, lon):
     punto = Point(lon, lat)
     for nome, geom in quartieri.items():
         if geom.contains(punto):
             return nome
     return None
+
 
 def fermata_piu_vicina(lat, lon):
     return min(fermate, key=lambda f: geodesic((lat, lon), (f["lat"], f["lon"])).meters)
@@ -144,6 +146,8 @@ elif step == 3:
 
         for feat in geojson_quartieri["features"]:
             nome = feat["properties"].get("layer", "Sconosciuto")
+            if nome not in [quartiere_p, quartiere_a]:
+                continue
             colore = quartiere_colori.get(nome, "#cccccc")
             folium.GeoJson(
                 feat,
@@ -156,7 +160,6 @@ elif step == 3:
                 }
             ).add_to(m)
 
-            # Nome al centro
             centroide = shape(feat["geometry"]).centroid
             folium.Marker(
                 location=[centroide.y, centroide.x],
