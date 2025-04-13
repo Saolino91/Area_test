@@ -61,14 +61,12 @@ for feat in geojson_quartieri["features"]:
     geom = shape(feat["geometry"])
     quartieri[nome] = geom
 
-
 def trova_quartiere(lat, lon):
     punto = Point(lon, lat)
     for nome, geom in quartieri.items():
         if geom.contains(punto):
             return nome
     return None
-
 
 def fermata_piu_vicina(lat, lon):
     return min(fermate, key=lambda f: geodesic((lat, lon), (f["lat"], f["lon"])).meters)
@@ -170,7 +168,7 @@ elif step == 3:
                 )
             ).add_to(m)
 
-        icon_path = "01-CONEROBUS1-removebg-preview.png"
+        icon_path = os.path.join(os.getcwd(), "01-CONEROBUS1-removebg-preview.png")
         custom_icon = CustomIcon(icon_image=icon_path, icon_size=(30, 30))
 
         folium.Marker(
