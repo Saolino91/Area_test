@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import socket
 from datetime import datetime
+from geopy.distance import geodesic
 
 st.set_page_config(page_title="Sondaggio TPL Jesi", layout="wide")
 st.title(":clipboard: Sondaggio sul Trasporto Pubblico Urbano di Jesi")
@@ -33,6 +34,21 @@ def cerca_luoghi(query):
         return resp.json()
     return []
 
+# ---------------------- Load fermate autobus ----------------------
+fermate_df = pd.read_csv("stops.txt")
+fermate = [
+    {
+        "stop_id": row["stop_id"],
+        "stop_name": row["stop_name"],
+        "lat": row["stop_lat"],
+        "lon": row["stop_lon"]
+    }
+    for _, row in fermate_df.iterrows()
+]
+
+def fermata_piu_vicina(lat, lon):
+    return min(fermate, key=lambda f: geodesic((lat, lon), (f["lat"], f["lon"])).meters)
+
 step = st.session_state.step
 
 # ---------------------- Step 1: Luogo di partenza ----------------------
@@ -45,11 +61,11 @@ if step == 1:
         labels = [f["display_name"] for f in scelte_part]
         scelta = st.selectbox("Seleziona il punto di partenza:", labels, key="sel_part")
         scelta_originale = next((f for f in scelte_part if f["display_name"] == scelta), None)
+        st.session_state.luogo_partenza = scelta_originale
         if scelta_originale:
-            st.session_state.luogo_partenza = scelta_originale
             st.success(f"Hai selezionato: {scelta_originale['display_name']}")
-            if st.button("Avanti"):
-                st.session_state.step = 2
+        if st.button("Avanti"):
+            st.session_state.step = 2
 
 # ---------------------- Step 2: Luogo di arrivo ----------------------
 elif step == 2:
@@ -61,11 +77,11 @@ elif step == 2:
         labels = [f["display_name"] for f in scelte_arr]
         scelta = st.selectbox("Seleziona il punto di arrivo:", labels, key="sel_arr")
         scelta_originale = next((f for f in scelte_arr if f["display_name"] == scelta), None)
+        st.session_state.luogo_arrivo = scelta_originale
         if scelta_originale:
-            st.session_state.luogo_arrivo = scelta_originale
             st.success(f"Hai selezionato: {scelta_originale['display_name']}")
-            if st.button("Avanti"):
-                st.session_state.step = 3
+        if st.button("Avanti"):
+            st.session_state.step = 3
 
 # ---------------------- Step 3: Conferma e salvataggio ----------------------
 elif step == 3:
@@ -75,10 +91,16 @@ elif step == 3:
         lat1, lon1 = float(luogo_partenza["lat"]), float(luogo_partenza["lon"])
         lat2, lon2 = float(luogo_arrivo["lat"]), float(luogo_arrivo["lon"])
 
+        fermata_o = fermata_piu_vicina(lat1, lon1)
+        fermata_d = fermata_piu_vicina(lat2, lon2)
+
         st.markdown(f"<span style='color:green'><b>Partenza:</b> {luogo_partenza['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat1}, {lon1})", language="text")
+        st.info(f"Fermata più vicina: {fermata_o['stop_name']} (ID: {fermata_o['stop_id']})")
+
         st.markdown(f"<span style='color:blue'><b>Arrivo:</b> {luogo_arrivo['display_name']}</span>", unsafe_allow_html=True)
         st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
+        st.info(f"Fermata più vicina: {fermata_d['stop_name']} (ID: {fermata_d['stop_id']})")
 
         if st.button("Conferma e vai al sondaggio"):
             ip = socket.gethostbyname(socket.gethostname())
@@ -89,15 +111,19 @@ elif step == 3:
                 "partenza": luogo_partenza['display_name'],
                 "lat_p": lat1,
                 "lon_p": lon1,
+                "fermata_p": fermata_o['stop_name'],
+                "id_fermata_p": fermata_o['stop_id'],
                 "arrivo": luogo_arrivo['display_name'],
                 "lat_a": lat2,
-                "lon_a": lon2
+                "lon_a": lon2,
+                "fermata_a": fermata_d['stop_name'],
+                "id_fermata_a": fermata_d['stop_id']
             }])
             if os.path.exists(file_path):
                 nuova.to_csv(file_path, mode="a", index=False, header=False)
             else:
                 nuova.to_csv(file_path, index=False)
-            st.success(":white_check_mark: Coordinate salvate correttamente!")
+            st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
             st.session_state.step = 4
 
 # ---------------------- Step 4: Prossimo modulo ----------------------
