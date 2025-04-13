@@ -193,4 +193,39 @@ elif step == 3:
         ).add_to(m)
 
         folium.Marker(
-            location=[float(fermata
+            location=[float(fermata_d["lat"]), float(fermata_d["lon"])],
+            tooltip=f"Fermata Arrivo: {fermata_d['stop_name']}",
+            icon=custom_icon if custom_icon is not None else None
+        ).add_to(m)
+
+        st.markdown("### :world_map: Mappa fermate e quartieri")
+        st_folium(m, height=600, use_container_width=True)
+
+        if st.button("Conferma e vai al sondaggio"):
+            ip = socket.gethostbyname(socket.gethostname())
+            file_path = "risposte_grezze.csv"
+            nuova = pd.DataFrame.from_records([{
+                "timestamp": datetime.now().isoformat(),
+                "ip": ip,
+                "partenza": luogo_partenza['display_name'],
+                "lat_p": lat1,
+                "lon_p": lon1,
+                "fermata_p": fermata_o['stop_name'],
+                "id_fermata_p": fermata_o['stop_id'],
+                "arrivo": luogo_arrivo['display_name'],
+                "lat_a": lat2,
+                "lon_a": lon2,
+                "fermata_a": fermata_d['stop_name'],
+                "id_fermata_a": fermata_d['stop_id']
+            }])
+            if os.path.exists(file_path):
+                nuova.to_csv(file_path, mode="a", index=False, header=False)
+            else:
+                nuova.to_csv(file_path, index=False)
+            st.success(":white_check_mark: Coordinate e fermate salvate correttamente!")
+            st.session_state.step = 4
+
+# ---------------------- Step 4: Prossimo modulo ----------------------
+elif step == 4:
+    st.header("Hai completato la prima parte del sondaggio!")
+    st.markdown("Prosegui con la sezione successiva... (in fase di sviluppo)")
