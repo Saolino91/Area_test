@@ -127,7 +127,6 @@ elif step == 3:
         st.code(f"Coordinate: ({lat2}, {lon2})", language="text")
         st.info(f"Fermata più vicina: {fermata_d['stop_name']} (ID: {fermata_d['stop_id']})")
 
-        # Visualizzazione mappa con quartieri evidenziati
         colori = {
             quartiere_p: "green",
             quartiere_a: "blue"
@@ -140,11 +139,11 @@ elif step == 3:
             folium.GeoJson(
                 feat,
                 name=nome,
-                style_function=lambda f, c=colore: {
+                style_function=lambda f, c=colore, n=nome: {
                     "fillColor": c,
                     "color": "black",
                     "weight": 1.5,
-                    "fillOpacity": 0.4 if nome in colori else 0.1
+                    "fillOpacity": 0.6 if n in colori else 0.1
                 },
                 tooltip=nome
             ).add_to(m)
