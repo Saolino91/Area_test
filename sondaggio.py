@@ -75,7 +75,7 @@ for nome, info in quartieri.items():
         colore = quartiere_colori.get(nome, "red")
 
     # Disegna poligono colorato
-    gj = folium.GeoJson(
+       gj = folium.GeoJson(
         info["geometry"],
         name=nome,
         tooltip=nome,
@@ -87,6 +87,7 @@ for nome, info in quartieri.items():
         }
     )
     gj.add_to(m)
+
 
     # Nome del quartiere visibile al centro
     folium.map.Marker(
