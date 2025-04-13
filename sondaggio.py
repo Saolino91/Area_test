@@ -99,7 +99,7 @@ for nome, info in quartieri.items():
     ).add_to(m)
 
 # Visualizza mappa
-click_data = st_folium(m, height=500, returned_objects=True)
+click_data = st_folium(m, height=500)
 
 # Gestione clic
 if click_data and "last_object_clicked" in click_data:
