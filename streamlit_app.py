@@ -5,6 +5,8 @@ import json
 from streamlit_folium import st_folium
 from datetime import datetime
 from folium.features import CustomIcon
+from folium.plugins import PolyLineTextPath
+
 
 # ----------------- CONFIGURAZIONE PAGINA -----------------
 st.set_page_config(layout="wide")
@@ -149,11 +151,27 @@ if selected_routes:
         # polilinee
         for sid in tr["shape_id"].unique():
             pts = shapes[shapes["shape_id"] == sid].sort_values("sequence")
-            folium.PolyLine(
-                list(zip(pts["lat"], pts["lon"])),
-                color=color, weight=5, opacity=0.7,
-                name=f"Linea {rid}"
-            ).add_to(m)
+# disegno la polilinea
+line = folium.PolyLine(
+    list(zip(pts["lat"], pts["lon"])),
+    color=color, weight=5, opacity=0.7,
+    name=f"Linea {rid}"
+).add_to(m)
+
+# aggiungo le freccine lungo la linea per indicare il verso
+PolyLineTextPath(
+    line,
+    '   ▶   ',         # il simbolo da ripetere
+    repeat=True,       # ripeti fino alla fine
+    offset=10,         # spostamento dal centro linea
+    attributes={       # stile (dimensione/colori)
+        'fill': color,
+        'font-weight': 'bold',
+        'font-size': '16px'
+    }
+).add_to(m)
+
+            
         # fermate
         tids = tr["trip_id"].unique()
         stops_on = stop_times[stop_times["trip_id"].isin(tids)].merge(stops, on="stop_id", how="left")
