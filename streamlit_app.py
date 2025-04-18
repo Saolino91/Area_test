@@ -133,18 +133,20 @@ if selected_routes:
                 name=f"Linea {rid}"
             ).add_to(m)
 
-        # raccogli fermate
-        tids = tr["trip_id"].unique()
-        stops_on = stop_times[stop_times["trip_id"].isin(tids)].merge(stops, on="stop_id")
-        for _, r in stops_on.iterrows():
-            sid2 = r["stop_id"]
-            info = stop_info.setdefault(sid2, {
-                "name": r["stop_name"],
-                "lat": r["stop_lat"],
-                "lon": r["stop_lon"],
-                "routes": set()
-            })
-            info["routes"].add(r["route_id"])
+    # raccogli fermate
+    tids = tr["trip_id"].unique()
+    stops_on = (stop_times[stop_times["trip_id"].isin(tids)]
+                .merge(stops, on="stop_id", how="left"))
+    for _, r in stops_on.iterrows():
+        sid2 = r["stop_id"]
+        info = stop_info.setdefault(sid2, {
+            "name":   r["stop_name"],
+            "lat":    r["stop_lat"],
+            "lon":    r["stop_lon"],
+            "routes": set()
+        })
+        # invece di r["route_id"], uso direttamente rid
+        info["routes"].add(rid)
 
     # aggiungi marker fermate
     for sid2, info in stop_info.items():
