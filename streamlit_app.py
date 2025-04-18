@@ -163,7 +163,7 @@ if selected_routes:
             # aggiungo le freccine lungo la linea per indicare il verso
             PolyLineTextPath(
                 line,
-                '   ▶   ',         # il simbolo da ripetere
+                '   ›   ',         # il simbolo da ripetere
                 repeat=True,       # ripeti fino alla fine
                 offset=10,         # spostamento dal centro linea
                 attributes={       # stile (dimensione/colori)
