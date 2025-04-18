@@ -16,12 +16,27 @@ with col1:
     st.markdown("""
         Questa applicazione consente di esplorare le linee del trasporto pubblico urbano di Jesi fornite da **Conerobus**.
 
-        - Seleziona una o più linee cliccando sui rettangoli colorati nella **sidebar**.
-        - La legenda si attiva automaticamente quando selezioni le linee.
-        - I quartieri sono già presenti in OpenStreetMap, non serve un filtro aggiuntivo qui.
-    """)
+        1. **Selezione delle linee**  
+           Nella **barra laterale** ci sono dei pulsanti con il numero di ciascuna linea.  
+           Clicca su un pulsante per attivare o disattivare la linea: quando è attiva comparirà un “✅” accanto al numero e il percorso verrà disegnato sulla mappa.
+
+        2. **Legenda**  
+           Appena selezioni almeno una linea, sotto i pulsanti comparirà la **Legenda linee** nella sidebar, con il numero evidenziato e il nome completo della linea.
+
+        3. **Quartieri**  
+           I quartieri sono già disponibili come layer in OpenStreetMap.  
+           Per mostrarli o nasconderli, utilizza il **Layer Control** (l’icona con tre linee) in alto a destra sulla mappa.
+
+        4. **Dettagli fermata**  
+           Cliccando su una fermata si apre un popup che mostra tutte le linee che la servono e i loro orari di transito.
+
+        5. **Fermate di interscambio**  
+           Le fermate di interscambio sono colorate in **arancione**.  
+           Nel popup vedrai **sottolineati gli orari delle linee le cui corse coincidono entro 5 minuti l’una dall’altra**, per individuare rapidamente le coincidenze.
+    """, unsafe_allow_html=True)
 with col2:
     st.image("Logo_Conerobus.png", width=400)
+
 
 # ----------------- FUNZIONI UTILI -----------------
 def time_to_seconds(t):
