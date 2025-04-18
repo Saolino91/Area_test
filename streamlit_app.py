@@ -5,8 +5,6 @@ import json
 from streamlit_folium import st_folium
 from datetime import datetime
 from folium.features import CustomIcon
-from geopy.distance import geodesic
-from shapely.geometry import shape, Point
 
 # ----------------- CONFIGURAZIONE PAGINA -----------------
 st.set_page_config(layout="wide")
@@ -14,13 +12,14 @@ col1, col2 = st.columns([3, 2])
 with col1:
     st.title("Servizio Urbano Jesi")
     st.markdown("""
-        Esplora le linee del trasporto pubblico urbano di Jesi:
-        - Seleziona le linee nella **sidebar** (botttoni colorati).
-        - La **legenda** si accende quando clicchi una linea.
-        - Attiva/disattiva quartieri e linee con il **Layer Control** (in alto a destra).
+        Questa applicazione consente di esplorare le linee del trasporto pubblico urbano di Jesi fornite da **Conerobus**.
+
+        - Seleziona una o più linee cliccando sui rettangoli colorati nella **sidebar**.
+        - La legenda si attiva automaticamente quando selezioni le linee.
+        - I quartieri sono già presenti in OpenStreetMap, non serve un filtro aggiuntivo qui.
     """)
 with col2:
-    st.image("Logo_Conerobus.png", width=200)
+    st.image("Logo_Conerobus.png", width=400)
 
 # ----------------- FUNZIONI UTILI -----------------
 def time_to_seconds(t):
@@ -53,12 +52,32 @@ def load_data():
 
 stops, trips, stop_times, shapes, routes, quartieri_geojson = load_data()
 
-# ----------------- SIDEBAR: BOTTONI + LEGGENDA -----------------
+# ----------------- COLORI QUARTIERI -----------------
+colori_quartieri = {
+    "Smia - Zona Industriale": "orange",
+    "Coppi - Giardini": "green",
+    "Prato": "red",
+    "Minonna": "blue",
+    "Paradiso": "yellow",
+    "San Francesco": "magenta",
+    "Erbarella - San Pierto Martire": "purple",
+    "San Giuseppe": "brown",
+    "Centro Storico": "black",
+    "Via Roma": "darkblue"
+}
+
+# ----------------- GESTIONE LINEE IN SIDEBAR -----------------
 route_ids = sorted(trips["route_id"].unique())
 
 if "route_colors" not in st.session_state:
-    palette = ["red","blue","green","orange","purple","pink","cadetblue","darkred","darkgreen","black"]
-    st.session_state.route_colors = {rid: palette[i % len(palette)] for i, rid in enumerate(route_ids)}
+    color_list = [
+        "red", "blue", "green", "orange", "purple", "pink",
+        "cadetblue", "darkred", "darkgreen", "black"
+    ]
+    st.session_state.route_colors = {
+        rid: color_list[i % len(color_list)]
+        for i, rid in enumerate(route_ids)
+    }
 route_colors = st.session_state.route_colors
 
 if "selected_routes" not in st.session_state:
@@ -74,98 +93,115 @@ with st.sidebar:
         if col.button(
             rid,
             key=f"btn_{rid}",
-            help="Clicca per attivare/disattivare",
-            args=(),
-            kwargs={}
+            help="Clicca per attivare/disattivare"
         ):
             if selected:
                 st.session_state.selected_routes.remove(rid)
             else:
                 st.session_state.selected_routes.append(rid)
 
-    # legenda attiva solo se ho almeno una linea selezionata
+    # Legenda attiva solo se ho almeno una linea selezionata
     if st.session_state.selected_routes:
         st.markdown("### Legenda linee")
         for rid in st.session_state.selected_routes:
-            name = routes.loc[routes["route_id"] == rid, "route_long_name"].iloc[0]
+            route_name = routes.loc[routes["route_id"] == rid, "route_long_name"].iloc[0]
             col = route_colors[rid]
             st.markdown(
-                f"<span style='background:{col};padding:0.3em 0.6em;"
-                f"border-radius:4px;color:white;font-weight:bold'>Linea {rid}</span>  {name}",
+                f"<span style='background:{col};"
+                f"padding:0.3em 0.6em;border-radius:4px;"
+                f"color:white;font-weight:bold'>Linea {rid}</span>  {route_name}",
                 unsafe_allow_html=True
             )
 
 selected_routes = st.session_state.selected_routes
 
-# ----------------- COSTRUZIONE MAPPA -----------------
+# ----------------- MAPPA -----------------
 if selected_routes:
-    # centro mappa
-    center = [stops["stop_lat"].mean(), stops["stop_lon"].mean()]
-    m = folium.Map(location=center, zoom_start=13)
+    center_lat = stops["stop_lat"].mean()
+    center_lon = stops["stop_lon"].mean()
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
+    stop_info = {}
 
-    # quartieri come layer toggle
+    # Aggiungi tutti i quartieri (toggle via LayerControl in mappa)
     for feat in quartieri_geojson["features"]:
-        nome = feat["properties"].get("layer", "Sconosciuto")
+        nome_q = feat["properties"].get("layer", "Sconosciuto")
+        colore = colori_quartieri.get(nome_q, "#CCCCCC")
         folium.GeoJson(
             feat,
-            name=f"Quartiere: {nome}",
-            tooltip=nome,
-            style_function=lambda f: {
-                "fillColor": "#cccccc",
-                "color": "#666666",
-                "weight": 1,
-                "fillOpacity": 0.1
+            name=f"Quartiere: {nome_q}",
+            tooltip=nome_q,
+            style_function=lambda f, colore=colore: {
+                "fillColor": colore,
+                "color": colore,
+                "weight": 2,
+                "fillOpacity": 0.2
             }
         ).add_to(m)
 
-    # raccogli info fermate
-    stop_info = {}
+    # Disegna le linee e raccogli le fermate
     for rid in selected_routes:
         color = route_colors[rid]
         tr = trips[trips["route_id"] == rid]
-
-        # disegna percorso
+        # polilinee
         for sid in tr["shape_id"].unique():
             pts = shapes[shapes["shape_id"] == sid].sort_values("sequence")
             folium.PolyLine(
                 list(zip(pts["lat"], pts["lon"])),
-                color=color, weight=5, opacity=0.8,
+                color=color, weight=5, opacity=0.7,
                 name=f"Linea {rid}"
             ).add_to(m)
+        # fermate
+        tids = tr["trip_id"].unique()
+        stops_on = stop_times[stop_times["trip_id"].isin(tids)].merge(stops, on="stop_id", how="left")
+        for _, row in stops_on.iterrows():
+            sid2 = row["stop_id"]
+            info = stop_info.setdefault(sid2, {
+                "stop_name": row["stop_name"],
+                "lat": row["stop_lat"],
+                "lon": row["stop_lon"],
+                "routes": {}
+            })
+            info["routes"].setdefault(rid, []).append(row["arrival_time"])
 
-    # raccogli fermate
-    tids = tr["trip_id"].unique()
-    stops_on = (stop_times[stop_times["trip_id"].isin(tids)]
-                .merge(stops, on="stop_id", how="left"))
-    for _, r in stops_on.iterrows():
-        sid2 = r["stop_id"]
-        info = stop_info.setdefault(sid2, {
-            "name":   r["stop_name"],
-            "lat":    r["stop_lat"],
-            "lon":    r["stop_lon"],
-            "routes": set()
-        })
-        # invece di r["route_id"], uso direttamente rid
-        info["routes"].add(rid)
-
-    # aggiungi marker fermate
+    # Popup e marker
     for sid2, info in stop_info.items():
-        routes_here = info["routes"] & set(selected_routes)
-        if not routes_here:
+        active = [r for r in info["routes"] if r in selected_routes]
+        if not active:
             continue
-        popup = f"<b>{info['name']}</b><br>Linee: {', '.join(map(str, sorted(routes_here)))}"
+        # costruisco popup
+        popup_lines = [f"<b>{info['stop_name']}</b><br><br>"]
+        is_interchange = False
+        times_by_route = {r: [time_to_seconds(t) for t in info["routes"][r]] for r in active}
+        for r in active:
+            display = []
+            for t in sorted(info["routes"][r]):
+                sec = time_to_seconds(t)
+                match = any(abs(sec - sec2) <= 300 for r2 in active if r2 != r for sec2 in times_by_route[r2])
+                ft = format_time_str(t)
+                if match:
+                    display.append(f"<u>{ft}</u>")
+                    is_interchange = True
+                else:
+                    display.append(ft)
+            clr = route_colors.get(r, "black")
+            popup_lines.append(f"<b style='color:{clr};'>{r}</b>: {' '.join(display)}<br><br>")
+        if is_interchange:
+            popup_lines.insert(1, "<i style='color:grey;'>Fermata di interscambio</i><br><br>")
+        popup_html = "".join(popup_lines)
+
+        icon = folium.Icon(color="orange", icon="exchange-alt", prefix="fa") if is_interchange else CustomIcon(
+            "01-CONEROBUS1-removebg-preview.png", icon_size=(20,20)
+        )
         folium.Marker(
             [info["lat"], info["lon"]],
-            popup=popup,
-            icon=folium.Icon(color="gray", icon="bus", prefix="fa")
+            popup=folium.Popup(popup_html, max_width=300),
+            icon=icon
         ).add_to(m)
 
-    # layer e line control
-    folium.LayerControl(collapsed=True).add_to(m)
+    folium.LayerControl(collapsed=False).add_to(m)
 
-    # render mappa
     st.markdown("### Mappa del servizio")
-    st_folium(m, height=800, use_container_width=True)
+    st_folium(m, use_container_width=True, height=1000)
 
 else:
     st.info("Seleziona almeno una linea dalla sidebar per visualizzare il percorso.")
