@@ -165,7 +165,8 @@ if selected_routes:
                 line,
                 '   ›   ',         # il simbolo da ripetere
                 repeat=True,       # ripeti fino alla fine
-                offset=10,         # spostamento dal centro linea
+                offset=0,         # spostamento dal centro linea
+                center=True,        #centra il testo lungo il percorso
                 attributes={       # stile (dimensione/colori)
                     'fill': color,
                     'font-weight': 'bold',
