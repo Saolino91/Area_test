@@ -88,10 +88,13 @@ with st.sidebar:
     btn_cols = st.columns(6)
     for idx, rid in enumerate(route_ids):
         col = btn_cols[idx % 6]
-        color = route_colors[rid]
         selected = rid in st.session_state.selected_routes
+
+        # se selezionata, aggiungo il checkmark
+        label = f"{'✅ ' if selected else ''}{rid}"
+
         if col.button(
-            rid,
+            label,
             key=f"btn_{rid}",
             help="Clicca per attivare/disattivare"
         ):
@@ -99,6 +102,7 @@ with st.sidebar:
                 st.session_state.selected_routes.remove(rid)
             else:
                 st.session_state.selected_routes.append(rid)
+
 
     # Legenda attiva solo se ho almeno una linea selezionata
     if st.session_state.selected_routes:
