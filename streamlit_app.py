@@ -152,24 +152,24 @@ if selected_routes:
         for sid in tr["shape_id"].unique():
             pts = shapes[shapes["shape_id"] == sid].sort_values("sequence")
 # disegno la polilinea
-line = folium.PolyLine(
-    list(zip(pts["lat"], pts["lon"])),
-    color=color, weight=5, opacity=0.7,
-    name=f"Linea {rid}"
-).add_to(m)
+    line = folium.PolyLine(
+        list(zip(pts["lat"], pts["lon"])),
+        color=color, weight=5, opacity=0.7,
+        name=f"Linea {rid}"
+    ).add_to(m)
 
 # aggiungo le freccine lungo la linea per indicare il verso
-PolyLineTextPath(
-    line,
-    '   ▶   ',         # il simbolo da ripetere
-    repeat=True,       # ripeti fino alla fine
-    offset=10,         # spostamento dal centro linea
-    attributes={       # stile (dimensione/colori)
-        'fill': color,
-        'font-weight': 'bold',
-        'font-size': '16px'
-    }
-).add_to(m)
+    PolyLineTextPath(
+        line,
+        '   ▶   ',         # il simbolo da ripetere
+        repeat=True,       # ripeti fino alla fine
+        offset=10,         # spostamento dal centro linea
+        attributes={       # stile (dimensione/colori)
+            'fill': color,
+            'font-weight': 'bold',
+            'font-size': '16px'
+        }
+    ).add_to(m)
 
             
         # fermate
