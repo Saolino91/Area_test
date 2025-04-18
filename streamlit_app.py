@@ -170,7 +170,7 @@ if selected_routes:
                 attributes={       # stile (dimensione/colori)
                     'fill': color,
                     'font-weight': 'bold',
-                    'font-size': '16px'
+                    'font-size': '24px'
                 }
             ).add_to(m)
 
